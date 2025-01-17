@@ -8,7 +8,7 @@ Currently, there are wildfires in California which have been deadly for the past
 
 How it works:
 
-This program calculates fire behavior metrics using established fire science equations such as the  Rothermel and Byram equations that determine fire intensity, flame length, and flame height. We have also used equations that compute the required safety zone distances to protect firefighters and calculate the burn area and the escape time. Our program also evaluates areas considering a number of risk factors like fuel conditions, weather, topography, population density, infrastructure, etc. This program also provides recommendations for evacuation status and resource deployment by level of risk using the National Fire Danger Rating System (NFDRS) and creates a priority list that emergency responders and medical personnel can use.
+This program calculates fire behavior metrics using established fire science equations such as the  Rothermel and Byram equations that determine fire intensity, flame length, and flame height. We have also used equations that compute the required safety zone distances to protect firefighters and calculate the burn area and the escape time. Our program also evaluates areas considering a number of risk factors like fuel conditions, weather, topography, population density, infrastructure, etc. This program also provides recommendations for evacuation status and resource deployment by level of risk using the National Fire Danger Rating System (NFDRS) and creates a priority list that emergency responders and medical personnel can use. We also used Negation as Failure (NAF) in different levels of the fire to make sure certian conditions were not present in certain fire levels. 
 
 How we built it:
 
