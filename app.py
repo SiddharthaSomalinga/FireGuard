@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.exceptions import NotFittedError
 import matplotlib.pyplot as plt
@@ -64,9 +63,17 @@ if uploaded_file:
     X = df.drop(target_column, axis=1)
     y = df[target_column]
 
-    # Split dataset
+    # Manual dataset split using numpy
     test_size = st.sidebar.slider("Test Size (Fraction)", 0.1, 0.5, 0.2)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+    indices = np.arange(X.shape[0])  # Get indices of the dataset
+    np.random.shuffle(indices)  # Shuffle the indices
+
+    split = int((1 - test_size) * len(indices))  # Calculate the split index
+    train_indices = indices[:split]  # First part for training
+    test_indices = indices[split:]  # Remaining part for testing
+
+    X_train, X_test = X.iloc[train_indices], X.iloc[test_indices]  # Split the features
+    y_train, y_test = y.iloc[train_indices], y.iloc[test_indices]  # Split the labels
 
     # Standardize feature data
     scaler = StandardScaler()
@@ -92,15 +99,6 @@ if uploaded_file:
         # Evaluate the model
         st.subheader("Model Evaluation")
         st.write(f"**Accuracy:** {accuracy_score(y_test, y_pred):.2f}")
-        #st.write("**Classification Report:**")
-        #st.text(classification_report(y_test, y_pred))
-
-        #st.write("**Confusion Matrix:**")
-        #cm = confusion_matrix(y_test, y_pred)
-        #fig, ax = plt.subplots()
-        #sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y), ax=ax)
-        #ax.set_title("Confusion Matrix")
-        #st.pyplot(fig)
 
         # Feature Importance
         st.subheader("Feature Importance")
