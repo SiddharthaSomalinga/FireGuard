@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.exceptions import NotFittedError
@@ -12,7 +12,7 @@ import seaborn as sns
 st.set_page_config(page_title="Forest Fire Prediction", layout="wide")
 
 # Title of the app
-st.title("Forest Fire Prediction using Random Forest")
+st.title("Forest Fire Prediction using XGBoost")
 
 # Sidebar for uploading dataset
 st.sidebar.header("Upload Dataset")
@@ -83,18 +83,18 @@ if uploaded_file:
     # Initialize model_trained flag and rf_model in session_state
     if 'model_trained' not in st.session_state:
         st.session_state.model_trained = False
-    if 'rf_model' not in st.session_state:
-        st.session_state.rf_model = None
+    if 'xgb_model' not in st.session_state:
+        st.session_state.xgb_model = None
 
-    # Train Random Forest Classifier
+    # Train XGBoost Classifier
     n_estimators = st.sidebar.slider("Number of Trees (n_estimators)", 50, 500, 100)
-    rf_model = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
+    xgb_model = xgb.XGBClassifier(n_estimators=n_estimators, random_state=42)
 
     if st.sidebar.button("Train Model"):
-        rf_model.fit(X_train, y_train)
-        st.session_state.rf_model = rf_model  # Save the trained model in session state
+        xgb_model.fit(X_train, y_train)
+        st.session_state.xgb_model = xgb_model  # Save the trained model in session state
         st.session_state.model_trained = True  # Set the model_trained flag to True
-        y_pred = rf_model.predict(X_test)
+        y_pred = xgb_model.predict(X_test)
 
         # Evaluate the model
         st.subheader("Model Evaluation")
@@ -102,7 +102,7 @@ if uploaded_file:
 
         # Feature Importance
         st.subheader("Feature Importance")
-        feature_importance = rf_model.feature_importances_
+        feature_importance = xgb_model.feature_importances_
         features = X.columns
         importance_df = pd.DataFrame({"Feature": features, "Importance": feature_importance}).sort_values(
             by="Importance", ascending=False)
@@ -130,7 +130,7 @@ if uploaded_file:
             st.error("The model is not trained yet. Please train the model before making predictions.")
         else:
             # Retrieve the trained model
-            rf_model = st.session_state.rf_model
+            xgb_model = st.session_state.xgb_model
 
             # Create a DataFrame for the user input
             input_df = pd.DataFrame([user_input])
@@ -143,8 +143,8 @@ if uploaded_file:
 
             try:
                 # Make prediction
-                prediction = rf_model.predict(input_scaled)
-                prediction_proba = rf_model.predict_proba(input_scaled)
+                prediction = xgb_model.predict(input_scaled)
+                prediction_proba = xgb_model.predict_proba(input_scaled)
 
                 # Map numerical prediction to Fire/No Fire
                 fire_prediction = "Fire" if prediction[0] == '1' else "No Fire"
