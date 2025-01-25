@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import xgboost as xgb
-from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.exceptions import NotFittedError
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ import seaborn as sns
 st.set_page_config(page_title="Forest Fire Prediction", layout="wide")
 
 # Title of the app
-st.title("Forest Fire Prediction using XGBoost")
+st.title("Forest Fire Prediction using Random Forest")
 
 # Sidebar for uploading dataset
 st.sidebar.header("Upload Dataset")
@@ -63,17 +64,9 @@ if uploaded_file:
     X = df.drop(target_column, axis=1)
     y = df[target_column]
 
-    # Manual dataset split using numpy
+    # Split dataset
     test_size = st.sidebar.slider("Test Size (Fraction)", 0.1, 0.5, 0.2)
-    indices = np.arange(X.shape[0])  # Get indices of the dataset
-    np.random.shuffle(indices)  # Shuffle the indices
-
-    split = int((1 - test_size) * len(indices))  # Calculate the split index
-    train_indices = indices[:split]  # First part for training
-    test_indices = indices[split:]  # Remaining part for testing
-
-    X_train, X_test = X.iloc[train_indices], X.iloc[test_indices]  # Split the features
-    y_train, y_test = y.iloc[train_indices], y.iloc[test_indices]  # Split the labels
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
     # Standardize feature data
     scaler = StandardScaler()
@@ -83,26 +76,35 @@ if uploaded_file:
     # Initialize model_trained flag and rf_model in session_state
     if 'model_trained' not in st.session_state:
         st.session_state.model_trained = False
-    if 'xgb_model' not in st.session_state:
-        st.session_state.xgb_model = None
+    if 'rf_model' not in st.session_state:
+        st.session_state.rf_model = None
 
-    # Train XGBoost Classifier
+    # Train Random Forest Classifier
     n_estimators = st.sidebar.slider("Number of Trees (n_estimators)", 50, 500, 100)
-    xgb_model = xgb.XGBClassifier(n_estimators=n_estimators, random_state=42)
+    rf_model = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
 
     if st.sidebar.button("Train Model"):
-        xgb_model.fit(X_train, y_train)
-        st.session_state.xgb_model = xgb_model  # Save the trained model in session state
+        rf_model.fit(X_train, y_train)
+        st.session_state.rf_model = rf_model  # Save the trained model in session state
         st.session_state.model_trained = True  # Set the model_trained flag to True
-        y_pred = xgb_model.predict(X_test)
+        y_pred = rf_model.predict(X_test)
 
         # Evaluate the model
         st.subheader("Model Evaluation")
         st.write(f"**Accuracy:** {accuracy_score(y_test, y_pred):.2f}")
+        #st.write("**Classification Report:**")
+        #st.text(classification_report(y_test, y_pred))
+
+        #st.write("**Confusion Matrix:**")
+        #cm = confusion_matrix(y_test, y_pred)
+        #fig, ax = plt.subplots()
+        #sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y), ax=ax)
+        #ax.set_title("Confusion Matrix")
+        #st.pyplot(fig)
 
         # Feature Importance
         st.subheader("Feature Importance")
-        feature_importance = xgb_model.feature_importances_
+        feature_importance = rf_model.feature_importances_
         features = X.columns
         importance_df = pd.DataFrame({"Feature": features, "Importance": feature_importance}).sort_values(
             by="Importance", ascending=False)
@@ -130,7 +132,7 @@ if uploaded_file:
             st.error("The model is not trained yet. Please train the model before making predictions.")
         else:
             # Retrieve the trained model
-            xgb_model = st.session_state.xgb_model
+            rf_model = st.session_state.rf_model
 
             # Create a DataFrame for the user input
             input_df = pd.DataFrame([user_input])
@@ -143,8 +145,8 @@ if uploaded_file:
 
             try:
                 # Make prediction
-                prediction = xgb_model.predict(input_scaled)
-                prediction_proba = xgb_model.predict_proba(input_scaled)
+                prediction = rf_model.predict(input_scaled)
+                prediction_proba = rf_model.predict_proba(input_scaled)
 
                 # Map numerical prediction to Fire/No Fire
                 fire_prediction = "Fire" if prediction[0] == '1' else "No Fire"
