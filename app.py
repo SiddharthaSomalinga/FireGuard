@@ -92,15 +92,6 @@ if uploaded_file:
         # Evaluate the model
         st.subheader("Model Evaluation")
         st.write(f"**Accuracy:** {accuracy_score(y_test, y_pred):.2f}")
-        #st.write("**Classification Report:**")
-        #st.text(classification_report(y_test, y_pred))
-
-        #st.write("**Confusion Matrix:**")
-        #cm = confusion_matrix(y_test, y_pred)
-        #fig, ax = plt.subplots()
-        #sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y), ax=ax)
-        #ax.set_title("Confusion Matrix")
-        #st.pyplot(fig)
 
         # Feature Importance
         st.subheader("Feature Importance")
@@ -146,10 +137,15 @@ if uploaded_file:
             try:
                 # Make prediction
                 prediction = rf_model.predict(input_scaled)
-                prediction_proba = rf_model.predict_proba(input_scaled)
 
-                # Map numerical prediction to Fire/No Fire
-                fire_prediction = "Fire" if prediction[0] == '1' else "No Fire"
+                # Debugging: Output raw prediction
+                #st.write(f"Prediction Array: {prediction}")
+
+                # Strip any leading/trailing whitespace from the prediction
+                cleaned_prediction = prediction[0].strip()
+
+                # Map prediction to Fire/No Fire based on the class labels
+                fire_prediction = "Fire" if cleaned_prediction.lower() == 'fire' else "No Fire"
 
                 st.subheader("Prediction Results")
                 st.write(f"Prediction: **{fire_prediction}**")
