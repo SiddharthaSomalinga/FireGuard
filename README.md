@@ -24,6 +24,11 @@ We are proud that we were able to successfully integrate scientific fire behavio
 
 We learned about fire behavior modeling, combining multiple environmental and social factors into a single risk assessment through a chatbot interface, the Random Forest machine learning algorithm, and implementing scientific equations in a practical emergency management system that is relevant to today’s society due to the ongoing fires in California.
 
+
 **What's next for FireGuard:**
 
 We hope to integrate real-time weather data to calculate more real-time data and collaborate with AI companies that provide video feeds so we can develop a machine-learning model that can better help combat fires in the future. We also hope to use real-world sensors that collect data on fuel content and integrate that into the machine learning model, as well as train the model on more datasets to improve accuracy further.
+
+**Setup Instructions:**
+
+Download or clone the repository from Github. Install all the required libraries as shown in the app.py file. After that, go to terminal and run the command streamlit run app.py, and the application should open in a new window locally. To run the prolog file, use the SWI-Prolog interpreter online or any other Prolog or s(CASP) interpreter and run "chatbot." to get the chatbot ui and "priority_list(OrderedResults)." to get the priority list based on the test cases.
