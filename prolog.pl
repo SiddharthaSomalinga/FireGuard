@@ -1,140 +1,64 @@
+:- discontiguous handle_input/1.
+:- style_check(-singleton).
 
-% ------------------- Fire Intensity and Safety Zones -------------------
-
-% Fire Spread Prediction
-% I = Reaction Intensity
-% P = Propagating Flux Ratio
-% W = Wind Factor
-% S = Slope Factor
-% B = Bulk Density
-% E = Effective Heating Number
-% H = Heat of Preignition
-rothermel(I, P, W, S, B, E, H) :-
+% Fire Spread Prediction using Rothermel equation
+rothermel(I, P, W, S, B, E, H, R) :-
    R is (I * P * (1 + W + S)) / (B * E * H),
    format('Rate of Spread: ~2f ft/min~n', [R]).
 
-% Fireline Intensity
-% H_Yield = Heat Yield
-% A_Fuel = Amount of Fuel Consumed
-byram(H, W, R) :-
-   I_fireline is H * W * (R * 0.00508),
-   format('Fireline Intensity: ~2f kW/m~n', [I_fireline]).
+byram(H, W, R, I_fireline) :-
+   I_fireline is H * W * (R * 0.00508).
 
-% Total fireline intensity
-fireline_intensity(I, P, W, S, B, E, H, H_Yield, A_Fuel, Intensity) :-
+fireline_intensity(I, P, W, S, B, E, H, H_Yield, A_Fuel) :-
    rothermel(I, P, W, S, B, E, H, R),
-   byram(H_Yield, A_Fuel, R, Intensity).
+   byram(H_Yield, A_Fuel, R, Result),
+   Result is H_Yield * A_Fuel * (R * 0.00508),
+   format('Fireline Intensity: ~2f kW/m~n', [Result]).
 
-% Flame Length
-% I = Fireline Intensity
 flame_length(I) :-
    L is 0.45 * (I ** 0.46),
    format('Flame Length: ~2f m~n', [L]).
 
-% Flame Height
-% C and N = Empirical coefficients that depend on fuel type and wind conditions.
-% I = Fireline intensity
-% H = Flame height
-flame_height(C, I, N) :-
+flame_height(C, I, N, H) :-
    H is C * (I ** N),
    format('Flame Height: ~2f m~n', [H]).
 
-% Safety Zone
-% H = Flame height (in feet or meters)
-calculate_safety_zone(H) :-
+calculate_safety_zone(H, R) :-
    R is 4 * H,
    format('Safety Zone: ~2f m~n', [R]).
 
-% Combined safety zone calculation based on inputs
-safety_zone_given_flame_height(C, I, N, H, R) :-
+safety_zone(C, I, N, H, R) :-
    flame_height(C, I, N, H),
    calculate_safety_zone(H, R).
 
-% Burn Area Estimation
-% R = Rate of fire spread
-% T = Time elapsed since ignition
 calculate_burn_area(R, T) :-
    A is (R * T) ** 2,
    format('Burn Area Estimation: ~2f m^2~n', [A]).
 
-% Escape Time
-% D = Distance to nearest safe zone (m or ft).
-% R = Rate of fire spread (m/s or ft/min).
 calculate_escape_time(D, R) :-
    T is D / R,
    format('Escape Time: ~2f s~n', [T]).
 
-% ------------------- Test Cases --------------------------------
-% rothermel(1000, 0.5, 1.2, 0.3, 5, 0.4, 250).
-% byram(8000, 1.5, 2.5).
-% flame_length(152.4).
-% flame_height(0.2, 152.4, 0.5).
-% calculate_safety_zone(1.97).
-% calculate_burn_area(2.5, 10).
-% calculate_escape_time(500, 2.5).
-
-% rothermel(1000, 0.5, 1.2, 0.3, 5, 0.4, 250), byram(8000, 1.5, 2.5), flame_length(152.4), flame_height(0.2, 152.4, 0.5), calculate_safety_zone(1.97), calculate_burn_area(2.5, 10), calculate_escape_time(500, 2.5).
-
-
-% ------------------- Firefighters' Focus -------------------
-% These predicates help firefighters determine the areas to focus on based on fire intensity, flame length, and flame height.
-
-% ------------------- Monitoring Fires and First Responders -------------------
-
 % National Fire Danger Rating System (NFDRS)
-fuels(moist).
-fuels(moderate).
-fuels(dry).
-fuels(extremely_dry).
-
-temperature(low).
-temperature(moderate).
-temperature(high).
-temperature(very_high).
-
-humidity(high).
-humidity(moderate).
-humidity(low).
-humidity(very_low).
-
-wind_speed(low).
-wind_speed(moderate).
-wind_speed(strong).
-wind_speed(extreme).
-
-topography(flat).
-topography(hilly).
-topography(steep).
-topography(very_steep).
-
-population_density(low).
-population_density(medium).
-population_density(high).
-
-infrastructure(no).
-infrastructure(no_critical).
-infrastructure(slightly_critical).
-infrastructure(critical).
-
-% Define the area details
+fuels(moist). fuels(moderate). fuels(dry). fuels(extremely_dry).
+temperature(low). temperature(moderate). temperature(high). temperature(very_high).
+humidity(high). humidity(moderate). humidity(low). humidity(very_low).
+wind_speed(low). wind_speed(moderate). wind_speed(strong). wind_speed(extreme).
+topography(flat). topography(hilly). topography(steep). topography(very_steep).
+population_density(low). population_density(medium). population_density(high).
+infrastructure(no). infrastructure(no_critical). infrastructure(slightly_critical). infrastructure(critical).
 
 area_details(area_1, extremely_dry, very_high, very_low, extreme, very_steep, high, critical).
-
 area_details(area_2, moist, low, high, low, flat, low, no).
-
 area_details(area_3, dry, moderate, moderate, moderate, hilly, medium, slightly_critical).
-
 area_details(area_4, dry, high, low, strong, steep, high, critical).
-
 area_details(area_5, dry, high, low, strong, steep, high, slightly_critical).
 
-% Fire risk classification based on environmental factors
 classify_fire_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
     area_details(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra),
-    calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel).
+    calculate_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel).
 
-% Calculate the risk level dynamically based on conditions
-calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
+calculate_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
     (
         % Low Risk
         (Fuel = moist; Fuel = moderate),
@@ -209,7 +133,6 @@ calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
         RiskLevel = 'Unknown'
     ).
 
-% Evacuation and Resource Requirements based on Risk Level
 evac_and_res(RiskLevel, Evac, Res) :-
     (
         RiskLevel = 'Low' -> Evac = no, Res = fire_engines;
@@ -220,7 +143,6 @@ evac_and_res(RiskLevel, Evac, Res) :-
         Evac = no, Res = fire_engines
     ).
 
-% New predicate to print areas
 print_areas :-
     findall([Area, RiskLevel, Fuel, Temp, Hum, Wind, Topo, Pop, Infra],
             classify_fire_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel),
@@ -246,7 +168,6 @@ print_areas([[Area, RiskLevel, Fuel, Temp, Hum, Wind, Topo, Pop, Infra]|Rest], N
     N1 is N - 1,
     print_areas(Rest, N1).
 
-% Order areas by risk level dynamically
 order_risks_by_level(OrderedResults) :-
     findall([RiskValue, Area, RiskLevel, Fuel, Temp, Hum, Wind, Topo, Pop, Infra],
     (
@@ -256,7 +177,6 @@ order_risks_by_level(OrderedResults) :-
     Results),
     sort(1, @>=, Results, OrderedResults).
 
-% Risk level values for sorting
 risk_level_value('Extreme', 5).
 risk_level_value('Very High', 4).
 risk_level_value('High', 3).
@@ -264,12 +184,85 @@ risk_level_value('Medium', 2).
 risk_level_value('Low', 1).
 risk_level_value('Unknown', 0).
 
-% Main query to print areas and get ordered results
-main_query(OrderedResults) :-
+priority_list(OrderedResults) :-
     print_areas,
     order_risks_by_level(OrderedResults).
 
-% ------------------- First Responders' Focus -------------------
-% This part focuses on monitoring fire risks, evacuation status, and the required resources for first responders.
 
 
+chatbot :-
+    write('Welcome to the FireGuard Chatbot! Type "exit" to quit.'), nl,
+    repeat,
+    write('What would you like to know? (fireline intensity, flame length, safety zone, burn area, escape time, risk level): '),
+    read(Input),
+    handle_input(Input),
+    (Input == exit -> ! ; fail).
+
+
+
+handle_input(fireline_intensity) :-
+    write('Enter Reaction Intensity (I): '), nl,
+    read(I),
+    write('Enter Propagating Flux Ratio (P): '), nl,
+    read(P),
+    write('Enter Wind Factor (W): '), nl,
+    read(W),
+    write('Enter Slope Factor (S): '), nl,
+    read(S),
+    write('Enter Bulk Density (B): '), nl,
+    read(B),
+    write('Enter Effective Heating Number (E): '), nl,
+    read(E),
+    write('Enter Heat of Preignition (H): '), nl,
+    read(H),
+    write('Enter Heat Yield (H_Yield): '), nl,
+    read(H_Yield),
+    write('Enter Amount of Fuel Consumed (A_Fuel): '), nl,
+    read(A_Fuel),
+    fireline_intensity(I, P, W, S, B, E, H, H_Yield, A_Fuel).
+
+handle_input(flame_length) :-
+    write('Please provide the Fireline Intensity (I): '), read(I),
+    flame_length(I).
+
+handle_input(safety_zone) :-
+    write('Enter Empirical Constant (C): '), nl,
+    read(C),
+    write('Enter Fireline Intensity (I): '), nl,
+    read(I),
+    write('Enter Exponent (N): '), nl,
+    read(N),
+    calculate_flame_height(C, I, N, H),
+    safety_zone(C, I, N, H, _).
+
+calculate_flame_height(C, I, N, H) :-
+    H is C * I ^ N.
+
+handle_input(burn_area) :-
+    write('Please provide the Rate of fire spread (R): '), nl,
+    read(R),
+    write('Please provide the Time elapsed since ignition (T): '), nl,
+    read(T),
+    calculate_burn_area(R, T).
+
+handle_input(escape_time) :-
+    write('Distance to nearest safe zone (D): '), nl,
+    read(D),
+    write(' Rate of fire spread (R): '), nl,
+    read(R),
+    calculate_escape_time(D, R).
+
+handle_input(risk_level) :-
+    write('Please provide the Area (e.g., area_1): '), nl, read(Area),
+    write('Please provide the Fuel type (moist, moderate, dry, extremely_dry): '), nl, read(Fuel),
+    write('Please provide the Temperature (low, moderate, high, very_high): '), nl, read(Temp),
+    write('Please provide the Humidity (high, moderate, low, very_low): '), nl, read(Hum),
+    write('Please provide the Wind speed (low, moderate, strong, extreme): '), nl, read(Wind),
+    write('Please provide the Topography (flat, hilly, steep, very_steep): '), nl, read(Topo),
+    write('Please provide the Population density (low, medium, high): '), nl, read(Pop),
+    write('Please provide the Infrastructure (no, no_critical, slightly_critical, critical): '), nl, read(Infra),
+    calculate_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel),
+    write('Fire Risk Level: '), write(RiskLevel), nl.
+
+handle_input(exit) :-
+    write('Goodbye!'), nl.
