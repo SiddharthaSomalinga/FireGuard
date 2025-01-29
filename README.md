@@ -31,4 +31,8 @@ We hope to integrate real-time weather data to calculate more real-time data and
 
 **Setup Instructions:**
 
-Download or clone the repository from Github. Install all the required libraries as shown in the app.py file. After that, go to terminal and run the command streamlit run app.py, and the application should open in a new window locally. To run the prolog file, use the SWI-Prolog interpreter online or any other Prolog or s(CASP) interpreter and run "chatbot." to get the chatbot ui and "priority_list(OrderedResults)." to get the priority list based on the test cases.
+Running machine learning model directly from the link above: Download the forest fire dataset, upload the dataset on the website, select prediction on the target column, click train model based on desired test size and desired number of trees, and then enter in inputs and click predict.
+
+Cloning the repository and running it locally: Download or clone the repository from Github. Install all the required libraries as shown in the app.py file. After that, go to the terminal and run the command streamlit run app.py, and the application should open locally in a new window.
+
+s(CASP) chatbot: To run the prolog file, use the SWI-Prolog interpreter online or any other Prolog or s(CASP) interpreter and run "chatbot." to get the chatbot ui and "priority_list(OrderedResults)." to get the priority list based on the test cases.
