@@ -15,6 +15,13 @@ st.set_page_config(page_title="Forest Fire Prediction", layout="wide")
 # Title of the app
 st.title("Forest Fire Prediction using Random Forest")
 
+# Embed ArcGIS map using iframe HTML
+st.markdown("""
+    <iframe src="https://firemap.live/" 
+            width="100%" height="600px">
+    </iframe>
+""", unsafe_allow_html=True)
+
 # Sidebar for uploading dataset
 st.sidebar.header("Upload Dataset")
 uploaded_file = st.sidebar.file_uploader("Upload CSV file", type=["csv"])
