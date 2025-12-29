@@ -189,6 +189,13 @@ priority_list(OrderedResults) :-
     order_risks_by_level(OrderedResults).
 
 
+% JSON-friendly output helper for external callers (e.g., Python)
+classify_fire_risk_json(Area) :-
+    classify_fire_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel),
+    format('{"Area":"~w","RiskLevel":"~w","Fuel":"~w","Temp":"~w","Hum":"~w","Wind":"~w","Topo":"~w","Pop":"~w","Infra":"~w"}\n',
+           [Area, RiskLevel, Fuel, Temp, Hum, Wind, Topo, Pop, Infra]).
+
+
 
 chatbot :-
     write('Welcome to the FireGuard Chatbot! Type "exit" to quit.'), nl,

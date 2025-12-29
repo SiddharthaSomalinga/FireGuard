@@ -3,6 +3,9 @@ import pandas as pd
 import requests_cache
 from retry_requests import retry
 from datetime import datetime, timezone
+import subprocess
+import json
+import shlex
 
 def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: int = 90):
     cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
@@ -90,6 +93,38 @@ def fdi(temperature, humidity, wind, days_rain, rain):
     adjustment = get_adjustment_factor(rain, days_rain)
     return round(wind_fac * adjustment)
 
+
+def classify_area_with_prolog(area: str, prolog_file: str = "prolog.pl") -> dict:
+    """Call SWI-Prolog to classify an `area` using `prolog.pl` and return a dict result.
+
+    Requires `swipl` (SWI-Prolog) installed and available on PATH.
+    `area` should be the Prolog atom name, e.g. 'area_1' (without quotes in the Prolog goal).
+    """
+    # Build Prolog goal that prints JSON via classify_fire_risk_json/1 then halts.
+    goal = f'classify_fire_risk_json({area}), halt.'
+    cmd = ["swipl", "-q", "-s", prolog_file, "-g", goal]
+    try:
+        out = subprocess.check_output(cmd, text=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Prolog call failed: {e}")
+
+    out = out.strip()
+    if not out:
+        return {}
+
+    try:
+        return json.loads(out)
+    except Exception:
+        # Fallback: try simple key:value parsing
+        result = {}
+        for part in out.split(','):
+            if ':' in part:
+                k, v = part.split(':', 1)
+                k = k.strip().strip('"{}')
+                v = v.strip().strip('"{}')
+                result[k] = v
+        return result
+
 # Example usage:
 if __name__ == "__main__":
     # The Fire Danger Index (FDI) uses 5 categories to rate the fire danger represented by colour codes [Blue (insignificant) (0-20), Green (low) (21-45), Yellow (moderate) (46-60), Orange (high) (61-75) and Red (extremely high) (75<)]. Each of the danger rating is accompanied by precaution statement.
@@ -105,3 +140,10 @@ if __name__ == "__main__":
     # Order of variables for fdi function: temperature, humidity, wind speed, days_since_rain, rainfall_amount
     print(fdi(10, 50, 10, days_since_rain, rainfall_amount))  # Example 1
     print(fdi(40, 30, 30, days_since_rain, rainfall_amount))  # Example 2
+
+    # Example: call Prolog classifier for area_1 (requires swipl + prolog.pl)
+    try:
+        res = classify_area_with_prolog('area_1')
+        print('Prolog classification (area_1):', res)
+    except Exception as e:
+        print('Prolog classification failed:', e)
