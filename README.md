@@ -1,38 +1,139 @@
 # FireGuard
 
-**Inspiration:**
+## Inspiration
 
-Currently, there are wildfires in California which have been deadly for the past few days. In order to help support the initiative of combating these fires, we decided to develop a chatbot through the s(CASP) system and a trained machine learning model, as well as an embedded world, live fire map to help first responders and firefighters monitor these wildfires, take safety measures and combat them while decreasing casualties in areas. These programs help determine critical information that aids firefighters and emergency responders in combating these fires and organizing resources and evacuations.
+Wildfires continue to pose significant threats globally. FireGuard was developed to provide real-time wildfire risk assessment by combining environmental data, fire behavior modeling, machine learning, and a Prolog-based reasoning system. The goal is to empower first responders, emergency planners, and the public with actionable insights for evacuation, resource allocation, and fire management.
 
-**How it works:**
+## How It Works
 
-This program calculates fire behavior metrics using established fire science equations such as the Rothermel and Byram equations that determine fire intensity, flame length, and flame height. We have also used equations that compute the required safety zone distances to protect firefighters and calculate the burn area and the escape time. Our program also evaluates areas considering a number of risk factors like fuel conditions, weather, topography, population density, infrastructure, etc. This program also provides recommendations for evacuation status and resource deployment by level of risk using the National Fire Danger Rating System (NFDRS) and creates a priority list that emergency responders and medical personnel can use. We also used Negation as Failure (NAF) at different levels of the fire to make sure certain conditions were not present at certain fire levels. All these features are implemented through a chatbot interface, where the user can enter information and immediately receive information on the risk level, resources needed, etc. The machine learning model uses a dataset from 2012 that provides key metrics that correlate to a fire occurring and is presented in a clean UI interface by utilizing the Streamlit library in Python for ease of use. The map uses data from NASA FIRMS and shows critical details about fires across the USA and the world.
+FireGuard integrates multiple layers to assess wildfire risk:
 
-**How we built it:**
+### 1. Dynamic Environmental Data
 
-The system was developed through the implementation of scientific fire behavior models and integrated with a wide-ranging risk assessment framework. We implemented core fire behavior calculations, including the Rothermel equation for the rate of fire spread and the Byram equation for fireline intensity, and then developed a multi-factor risk classification system that considers environmental conditions like fuel moisture, temperature, humidity, wind speed-geographical features topography, and human factors-issues such as population density and critical infrastructure. The system uses these inputs to classify areas into five risk levels (Low, Medium, High, Very High, and Extreme) and provides specific recommendations for evacuation and resource allocation. We also have several features that firefighters and fire departments can use to help determine fireline intensity, flame length and height, safety zones, burn area and escape time so that fire departments can make their work more efficient. The machine learning model was built by training the model on the dataset and using the Random Forest Algorithm in Machine Learning to predict the likelihood of a wildfire, achieving an accuracy of 95%. We also integrated a world live fire map that shows details about fires across the USA and the world.
+- **Weather Data**: Temperature, humidity, wind speed, and precipitation are fetched in real-time from the Open-Meteo API.
+- **Rain History**: Historical rainfall is analyzed to estimate days since last rain and its effect on fuel moisture.
+- **Topography**: Elevation and slope are estimated using the Open-Elevation API to classify terrain.
+- **Population & Infrastructure**: Population density and critical infrastructure are inferred from OpenStreetMap APIs.
 
-**Challenges we ran into:**
+### 2. Fire Behavior Modeling
 
-These are some of the challenges we ran into: implementing complex fire behavior equations while maintaining accuracy, creating a balanced risk classification system that properly weighs multiple factors, developing clear decision rules for evacuation and resource deployment recommendations, ensuring the system remains efficient while processing multiple areas simultaneously and deploying the machine learning model through Streamlit.
+FireGuard uses classical fire science models:
 
-**Accomplishments That We're Proud Of:**
+- **Rothermel Equation**: Predicts fire spread rate.
+- **Byram Equation**: Calculates fireline intensity.
+- **Flame Length & Height**: Derived from fire intensity.
+- **Safety Zones, Burn Area, Escape Time**: Calculated using fire behavior metrics.
 
-We are proud that we were able to successfully integrate scientific fire behavior models and equations into an s(CASP) application through a chatbot that reflects human reasoning and common sense and provides a flexible and complete risk assessment system that provides clear, actionable output for first responders and critical information for firefighters and fire departments as well as multiple area analysis with sorted risk assessments based on the level of fire risk different areas have. We are also proud that we were able to provide a machine-learning model that can predict the likelihood of fire based on historical data. We are also proud to provide a map that users can use to get up-to-date details about fires in their proximity.
+### 3. Risk Scoring System
 
-**What we learned:**
+Risk is evaluated across multiple parameters:
 
-We learned about fire behavior modeling, combining multiple environmental and social factors into a single risk assessment through a chatbot interface, the Random Forest machine learning algorithm, and implementing scientific equations in a practical emergency management system that is relevant to today’s society due to the ongoing fires in California.
+| Factor | Scoring | Notes |
+|--------|---------|-------|
+| Fuel Moisture | 0–30 | Very critical |
+| Temperature | 0–20 | Higher temp = higher risk |
+| Humidity | 0–20 | Lower humidity = higher risk |
+| Wind Speed | 0–20 | Stronger wind = higher risk |
+| Topography | 0–15 | Steeper slopes = faster spread |
+| Population Density | 0–10 | More people at risk |
+| Infrastructure | 0–15 | Critical infrastructure increases consequence |
 
+Total score is mapped to risk levels: Very Low, Low, Medium, High, Very High, Extreme.
 
-**What's next for FireGuard:**
+Evacuation and resource recommendations are provided based on risk level.
 
-We hope to integrate real-time weather data to calculate more real-time data and collaborate with AI companies that provide video feeds so we can develop a machine-learning model that can better help combat fires in the future. We also hope to use real-world sensors that collect data on fuel content and integrate that into the machine learning model, as well as train the model on more datasets to improve accuracy further.
+### 4. Machine Learning & Fire Danger Index (FDI)
 
-**Setup Instructions:**
+- FDI is computed dynamically using temperature, humidity, wind, and rainfall history.
+- FDI numeric value is mapped to categories: Blue, Green, Yellow, Orange, Red.
 
-Running machine learning model directly from the link above: Download the forest fire dataset, upload the dataset on the website, select prediction on the target column, click train model based on desired test size and desired number of trees, and then enter in inputs and click predict.
+### 5. Prolog-Based Reasoning
 
-Cloning the repository and running it locally: Download or clone the repository from Github. Install all the required libraries as shown in the app.py file. After that, go to the terminal and run the command streamlit run app.py, and the application should open locally in a new window.
+- **Dynamic Prolog Facts**: Each area is dynamically added/updated in the Prolog knowledge base.
+- **Classification**: Prolog evaluates all parameters to assign fire risk, evacuation recommendations, and required resources.
+- **JSON Output**: Results can be easily integrated with Python for further processing or visualization.
 
-s(CASP) chatbot: To run the prolog file, use the SWI-Prolog interpreter online or any other Prolog or s(CASP) interpreter and run "chatbot." to get the chatbot ui and "priority_list(OrderedResults)." to get the priority list based on the test cases.
+### 6. Interactive Chatbot
+
+Users can query fireline intensity, flame length, safety zones, burn area, escape time, and risk level via a Prolog chatbot interface.
+
+## How We Built It
+
+- Python scripts fetch real-time environmental data.
+- Fire science equations are implemented in Prolog for deterministic reasoning.
+- Random Forest machine learning model (legacy) complements the system with historical predictions.
+- Python-Prolog integration allows dynamic area creation and real-time classification.
+- Results include risk levels, evacuation recommendations, and resource allocation.
+
+## Challenges
+
+- Fetching and integrating multiple external APIs reliably.
+- Converting continuous environmental data into categorical scores for Prolog classification.
+- Maintaining real-time performance while running complex calculations and external queries.
+- Handling dynamic Prolog facts for multiple areas without conflicts.
+
+## Accomplishments
+
+- Fully dynamic, real-time fire risk system combining Python, Prolog, and machine learning.
+- Provides actionable outputs for firefighters and emergency responders.
+- Interactive interface via chatbot and programmatic JSON outputs.
+- Supports multi-area comparisons with priority ordering.
+
+## Future Plans
+
+- Integrate live satellite and drone feeds to improve fire detection.
+- Expand to more granular local sensor data for vegetation and soil moisture.
+- Improve predictive accuracy with additional datasets.
+- Develop web-based dashboard for public and emergency services.
+
+## Setup Instructions
+
+### Running Locally
+
+1. Clone the repository:
+```bash
+git clone <repository_url>
+cd <repository_directory>
+```
+
+2. Install required Python libraries:
+```bash
+pip install -r requirements.txt
+```
+
+3. Ensure SWI-Prolog is installed for Prolog reasoning.
+
+4. Run the Python analysis script:
+```bash
+python main.py
+```
+
+The script fetches real-time data, updates Prolog facts, and prints risk analysis, FDI, and evacuation recommendations.
+
+### Running Prolog Chatbot
+
+1. Open SWI-Prolog or an s(CASP) interpreter.
+
+2. Load `prolog.pl` and run:
+```prolog
+chatbot.
+priority_list(OrderedResults).
+```
+
+3. Query fireline intensity, flame length, safety zones, burn area, escape time, or risk level interactively.
+
+## Example Usage
+
+Python script dynamically analyzes multiple locations:
+```python
+locations = [
+    (33.1507, -96.8236, "frisco_tx"),
+    (34.0522, -118.2437, "los_angeles_ca"),
+    (37.7749, -122.4194, "san_francisco_ca"),
+]
+
+for lat, lon, name in locations:
+    analyze_location_dynamic(lat, lon, area_name=name)
+```
+
+Each location outputs risk classification, evacuation status, resources needed, and FDI category.
