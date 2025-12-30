@@ -1,8 +1,12 @@
-# FireGuard
+# FireGuard 🔥
+
+**Real-time wildfire risk assessment system combining environmental data, fire behavior modeling, and Prolog-based reasoning.**
+
+🌐 **Live Demo**: [https://prolog-api.onrender.com](https://prolog-api.onrender.com)
 
 ## Inspiration
 
-Wildfires continue to pose significant threats globally. FireGuard was developed to provide real-time wildfire risk assessment by combining environmental data, fire behavior modeling, machine learning, and a Prolog-based reasoning system. The goal is to empower first responders, emergency planners, and the public with actionable insights for evacuation, resource allocation, and fire management.
+Wildfires continue to pose significant threats globally. FireGuard was developed to provide real-time wildfire risk assessment by combining environmental data, fire behavior modeling, and a Prolog-based reasoning system. The goal is to empower first responders, emergency planners, and the public with actionable insights for evacuation, resource allocation, and fire management.
 
 ## How It Works
 
@@ -89,6 +93,30 @@ Users can query fireline intensity, flame length, safety zones, burn area, escap
 - Improve predictive accuracy with additional datasets.
 - Add real-time map visualization for multiple locations.
 - Implement user authentication and saved location history.
+
+## Deployment
+
+FireGuard is deployed as a unified Flask application on Render with Docker:
+
+- **Production URL**: [https://prolog-api.onrender.com](https://prolog-api.onrender.com)
+- **API Endpoints**:
+  - `GET /` - Web interface
+  - `GET /api/health` - Health check
+  - `POST /api/analyze` - Fire risk analysis
+  - `POST /api/prolog/classify` - Prolog classification
+  - `GET /api/prolog/health` - Prolog service health
+
+### Architecture
+
+- **Frontend**: Served from `templates/` and `static/` by Flask
+- **Backend**: Merged Flask app combining fire analysis and Prolog reasoning
+- **Container**: Docker image with Python 3.13 + SWI-Prolog
+- **WSGI Server**: Gunicorn (production-ready)
+
+### Environment Variables
+
+- `PORT` - Server port (default: 5000)
+- `MOCK_WEATHER` - Set to `1` to use mock weather data (for testing/rate limit avoidance)
 
 ## Setup Instructions
 
@@ -208,7 +236,33 @@ Each location outputs risk classification, evacuation status, resources needed, 
 
 ### API Usage
 
-The web application exposes a REST API endpoint:
+**Production API** (deployed on Render):
+
+```bash
+# Health check
+curl https://prolog-api.onrender.com/api/health
+
+# Analyze fire risk for coordinates
+curl -X POST https://prolog-api.onrender.com/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"latitude": 33.1507, "longitude": -96.8236, "area_name": "frisco_tx"}'
+
+# Direct Prolog classification
+curl -X POST https://prolog-api.onrender.com/api/prolog/classify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "area_name": "test_area",
+    "fuel": "moderate",
+    "temp": "moderate",
+    "hum": "moderate",
+    "wind": "moderate",
+    "topo": "flat",
+    "pop": "low",
+    "infra": "no_critical"
+  }'
+```
+
+**Local API**:
 
 ```bash
 curl -X POST http://localhost:5000/api/analyze \
@@ -216,30 +270,62 @@ curl -X POST http://localhost:5000/api/analyze \
   -d '{"latitude": 33.1507, "longitude": -96.8236, "area_name": "frisco_tx"}'
 ```
 
+### Testing with Mock Weather
+
+To avoid Open-Meteo API rate limits during development:
+
+```bash
+# Local testing
+MOCK_WEATHER=1 python app.py
+
+# Or test analysis directly
+MOCK_WEATHER=1 python -c "
+from fdi import analyze_location_dynamic
+import json
+result = analyze_location_dynamic(33.1507, -96.8236, 'test')
+print(json.dumps(result, indent=2))
+"
+```
+
 ## Project Structure
 
 ```
 FireGuard/
-├── app.py                 # Flask web application
-├── fdi.py                 # Fire risk analysis logic
-├── prolog.pl              # Prolog knowledge base
-├── apitests.py            # API testing utilities
+├── app.py                     # Merged Flask application (web + API)
+├── fdi.py                     # Fire risk analysis logic with MOCK_WEATHER support
+├── prolog.pl                  # Prolog knowledge base (dynamic facts enabled)
+├── Dockerfile                 # Docker build for Render deployment
+├── requirements.txt           # Python dependencies (includes gunicorn)
+├── build.sh                   # Build script (no-op when using Docker)
 ├── templates/
-│   └── index.html         # Web interface template
+│   └── index.html             # Web interface template
 ├── static/
 │   ├── css/
-│   │   └── style.css      # Styling with red theme
+│   │   └── style.css          # Styling with red fire theme
 │   └── js/
-│       └── main.js        # Frontend JavaScript
-├── requirements.txt       # Python dependencies
-├── run.sh                 # Convenience script to run the app
-└── README.md              # This file
+│       └── main.js            # Frontend JavaScript
+├── api/
+│   └── prolog/                # Vercel serverless functions (optional)
+│       ├── classify.js
+│       └── health.js
+├── apitests.py                # API testing utilities
+└── README.md                  # This file
 ```
 
 ## Features
 
-- **Web Interface**: Modern, responsive web UI with red fire-themed design
-- **Real-time Analysis**: Fetches live weather and environmental data
-- **Multiple Interfaces**: Web UI, command-line script, and Prolog chatbot
-- **REST API**: Programmatic access via JSON API endpoints
-- **Comprehensive Results**: Weather, topography, risk classification, and recommendations
+- ✅ **Web Interface**: Modern, responsive web UI with red fire-themed design
+- ✅ **Real-time Analysis**: Fetches live weather and environmental data
+- ✅ **Multiple Interfaces**: Web UI, REST API, command-line script, and Prolog chatbot
+- ✅ **Production Deployment**: Dockerized on Render with Gunicorn
+- ✅ **Mock Weather Mode**: Test without API rate limits
+- ✅ **Dynamic Prolog Facts**: Runtime assertion of area data
+- ✅ **Comprehensive Results**: Weather, topography, FDI, risk classification, and recommendations
+
+## Tech Stack
+
+- **Backend**: Python 3.13, Flask, Gunicorn
+- **Logic Engine**: SWI-Prolog
+- **APIs**: Open-Meteo (weather), Open-Elevation (topography), OpenStreetMap (population/infrastructure)
+- **Deployment**: Docker, Render
+- **Frontend**: HTML, CSS, JavaScript
