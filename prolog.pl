@@ -118,6 +118,7 @@ area_details(frisco_tx, moderate, low, low, moderate, flat, high, no_critical).
 area_details(los_angeles_ca, moist, moderate, low, low, flat, high, no_critical).
 area_details(san_francisco_ca, moist, low, high, low, flat, high, no_critical).
 area_details(user_location, moderate, low, low, low, flat, high, no_critical).
+area_details(frisco_test, moist, high, low, moderate, flat, high, no_critical).
 
 % ============================================
 % RISK CLASSIFICATION LOGIC

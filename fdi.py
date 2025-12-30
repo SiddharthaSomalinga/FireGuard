@@ -13,12 +13,22 @@ from typing import Dict, Optional
 # Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
 IS_SERVERLESS = os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or not os.access('.', os.W_OK)
 
+# Check if mock weather mode is enabled (for testing without API calls)
+MOCK_WEATHER = os.environ.get('MOCK_WEATHER') == '1'
+
 # ============================================
 # DATA LAYER: Weather & Environmental Data
 # ============================================
 
 def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: int = 90):
     """Fetch historical rain data and calculate days since last rain."""
+    # If MOCK_WEATHER is enabled, return mock rain data
+    if MOCK_WEATHER:
+        last_rain_date = (datetime.now(timezone.utc) - pd.Timedelta(days=5)).date()
+        rainfall_on_last_rain = 12.5
+        days_since_last_rain = 5
+        return last_rain_date, rainfall_on_last_rain, days_since_last_rain
+    
     # Use in-memory cache for serverless environments, file cache for local
     if IS_SERVERLESS:
         cache_session = requests_cache.CachedSession(backend='memory', expire_after=-1)
@@ -66,6 +76,15 @@ def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: i
 
 def get_current_weather(latitude: float, longitude: float):
     """Fetch current weather conditions."""
+    # If MOCK_WEATHER is enabled, return mock weather data
+    if MOCK_WEATHER:
+        return {
+            "temperature": 28.5,
+            "humidity": 45.0,
+            "wind_speed": 15.2,
+            "current_precipitation": 0.0
+        }
+    
     # Use in-memory cache for serverless environments, file cache for local
     if IS_SERVERLESS:
         cache_session = requests_cache.CachedSession(backend='memory', expire_after=3600)
