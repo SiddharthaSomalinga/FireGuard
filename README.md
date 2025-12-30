@@ -63,6 +63,7 @@ Users can query fireline intensity, flame length, safety zones, burn area, escap
 - Fire science equations are implemented in Prolog for deterministic reasoning.
 - Random Forest machine learning model (legacy) complements the system with historical predictions.
 - Python-Prolog integration allows dynamic area creation and real-time classification.
+- Flask web application provides an intuitive web interface for easy access.
 - Results include risk levels, evacuation recommendations, and resource allocation.
 
 ## Challenges
@@ -76,7 +77,9 @@ Users can query fireline intensity, flame length, safety zones, burn area, escap
 
 - Fully dynamic, real-time fire risk system combining Python, Prolog, and machine learning.
 - Provides actionable outputs for firefighters and emergency responders.
-- Interactive interface via chatbot and programmatic JSON outputs.
+- Interactive web interface with clean, modern UI for easy access.
+- Prolog chatbot interface for advanced queries.
+- Programmatic JSON outputs for integration with other systems.
 - Supports multi-area comparisons with priority ordering.
 
 ## Future Plans
@@ -84,11 +87,18 @@ Users can query fireline intensity, flame length, safety zones, burn area, escap
 - Integrate live satellite and drone feeds to improve fire detection.
 - Expand to more granular local sensor data for vegetation and soil moisture.
 - Improve predictive accuracy with additional datasets.
-- Develop web-based dashboard for public and emergency services.
+- Add real-time map visualization for multiple locations.
+- Implement user authentication and saved location history.
 
 ## Setup Instructions
 
-### Running Locally
+### Prerequisites
+
+- Python 3.8 or higher
+- SWI-Prolog installed and accessible via `swipl` command
+- Virtual environment (recommended)
+
+### Installation
 
 1. Clone the repository:
 ```bash
@@ -96,19 +106,62 @@ git clone <repository_url>
 cd <repository_directory>
 ```
 
-2. Install required Python libraries:
+2. Create and activate a virtual environment (recommended):
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+3. Install required Python libraries:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Ensure SWI-Prolog is installed for Prolog reasoning.
-
-4. Run the Python analysis script:
+4. Ensure SWI-Prolog is installed:
 ```bash
-python main.py
+swipl --version
 ```
 
-The script fetches real-time data, updates Prolog facts, and prints risk analysis, FDI, and evacuation recommendations.
+If not installed:
+- **macOS**: `brew install swi-prolog`
+- **Linux**: `sudo apt-get install swi-prolog`
+- **Windows**: Download from [SWI-Prolog website](https://www.swi-prolog.org/download/stable)
+
+### Running the Web Application
+
+1. Activate the virtual environment (if not already active):
+```bash
+source .venv/bin/activate
+```
+
+2. Start the Flask server:
+```bash
+python app.py
+```
+
+Or use the convenience script:
+```bash
+./run.sh
+```
+
+3. Open your browser and navigate to:
+```
+http://localhost:5000
+```
+
+4. Enter coordinates (latitude and longitude) and click "Analyze Fire Risk"
+
+The web interface provides a user-friendly way to analyze fire risk with real-time data visualization.
+
+### Running Command-Line Script
+
+For programmatic access, you can run the Python analysis directly:
+
+```bash
+python fdi.py
+```
+
+This will analyze predefined locations and print results to the console.
 
 ### Running Prolog Chatbot
 
@@ -124,8 +177,22 @@ priority_list(OrderedResults).
 
 ## Example Usage
 
+### Web Interface
+
+1. Start the Flask server: `python app.py`
+2. Open `http://localhost:5000` in your browser
+3. Enter coordinates:
+   - **Frisco, TX**: Latitude: 33.1507, Longitude: -96.8236
+   - **Los Angeles, CA**: Latitude: 34.0522, Longitude: -118.2437
+   - **San Francisco, CA**: Latitude: 37.7749, Longitude: -122.4194
+4. Click "Analyze Fire Risk" to view results
+
+### Programmatic Usage
+
 Python script dynamically analyzes multiple locations:
 ```python
+from fdi import analyze_location_dynamic
+
 locations = [
     (33.1507, -96.8236, "frisco_tx"),
     (34.0522, -118.2437, "los_angeles_ca"),
@@ -133,7 +200,46 @@ locations = [
 ]
 
 for lat, lon, name in locations:
-    analyze_location_dynamic(lat, lon, area_name=name)
+    result = analyze_location_dynamic(lat, lon, area_name=name)
+    print(f"{name}: {result['prolog_classification'].get('RiskLevel', 'Unknown')} risk")
 ```
 
 Each location outputs risk classification, evacuation status, resources needed, and FDI category.
+
+### API Usage
+
+The web application exposes a REST API endpoint:
+
+```bash
+curl -X POST http://localhost:5000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"latitude": 33.1507, "longitude": -96.8236, "area_name": "frisco_tx"}'
+```
+
+## Project Structure
+
+```
+FireGuard/
+├── app.py                 # Flask web application
+├── fdi.py                 # Fire risk analysis logic
+├── prolog.pl              # Prolog knowledge base
+├── apitests.py            # API testing utilities
+├── templates/
+│   └── index.html         # Web interface template
+├── static/
+│   ├── css/
+│   │   └── style.css      # Styling with red theme
+│   └── js/
+│       └── main.js        # Frontend JavaScript
+├── requirements.txt       # Python dependencies
+├── run.sh                 # Convenience script to run the app
+└── README.md              # This file
+```
+
+## Features
+
+- **Web Interface**: Modern, responsive web UI with red fire-themed design
+- **Real-time Analysis**: Fetches live weather and environmental data
+- **Multiple Interfaces**: Web UI, command-line script, and Prolog chatbot
+- **REST API**: Programmatic access via JSON API endpoints
+- **Comprehensive Results**: Weather, topography, risk classification, and recommendations
