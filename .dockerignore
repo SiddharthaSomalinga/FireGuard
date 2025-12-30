@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+venv/
+*.pyc
+.git/
+node_modules/
+dist/
+build/
+env/
+*.log
+Dockerfile
+build.sh

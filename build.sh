@@ -1,18 +1,8 @@
 #!/bin/bash
-# Build script for Render deployment
-# Installs SWI-Prolog and Python dependencies
+# No-op build script when using Dockerfile builds on Render.
+# The Dockerfile installs SWI-Prolog and Python deps during image build.
 
-set -e  # Exit on error
+echo "Using Dockerfile for builds. Nothing to do in build.sh"
+exit 0
 
-echo "Installing SWI-Prolog..."
-apt-get update
-apt-get install -y swi-prolog
-
-echo "Verifying SWI-Prolog installation..."
-swipl --version
-
-echo "Installing Python dependencies..."
-pip install -r requirements_prolog_api.txt
-
-echo "Build complete!"
 
