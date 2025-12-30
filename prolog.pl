@@ -1,5 +1,6 @@
 :- discontiguous handle_input/1.
 :- discontiguous area_details/8.
+:- dynamic area_details/8.
 :- style_check(-singleton).
 
 % ============================================
