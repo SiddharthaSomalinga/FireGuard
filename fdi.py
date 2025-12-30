@@ -397,12 +397,17 @@ def fdi_to_category(fdi_value):
 
 def create_dynamic_prolog_fact(area_name: str, fuel: str, temp: str, hum: str, 
                                wind: str, topo: str, pop: str, infra: str,
-                               prolog_file: str = "prolog.pl") -> None:
+                               prolog_file: str = "prolog.pl") -> str:
     """
     Add or update a dynamic area fact in the Prolog file.
     This allows us to create areas based on real-time data.
+    Returns the fact string for use in serverless environments.
     """
     fact = f"area_details({area_name}, {fuel}, {temp}, {hum}, {wind}, {topo}, {pop}, {infra})."
+    
+    # In serverless environments, don't write to file, just return the fact
+    if IS_SERVERLESS:
+        return fact
     
     # Read existing file
     try:
@@ -439,11 +444,20 @@ def create_dynamic_prolog_fact(area_name: str, fuel: str, temp: str, hum: str,
     # Write back
     with open(prolog_file, 'w') as f:
         f.write(content)
+    
+    return fact
 
 
-def call_prolog_query(query: str, prolog_file: str = "prolog.pl") -> str:
+def call_prolog_query(query: str, prolog_file: str = "prolog.pl", additional_fact: str = None) -> str:
     """Execute a Prolog query and return raw output."""
-    cmd = ["swipl", "-q", "-s", prolog_file, "-g", query, "-t", "halt"]
+    if IS_SERVERLESS and additional_fact:
+        # In serverless, assert the fact dynamically and then run the query
+        # Remove the trailing period from the fact for assertz
+        fact_term = additional_fact.rstrip('.')
+        full_query = f"assertz({fact_term}), {query}"
+        cmd = ["swipl", "-q", "-s", prolog_file, "-g", full_query, "-t", "halt"]
+    else:
+        cmd = ["swipl", "-q", "-s", prolog_file, "-g", query, "-t", "halt"]
     try:
         output = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
         return output.strip()
@@ -451,10 +465,10 @@ def call_prolog_query(query: str, prolog_file: str = "prolog.pl") -> str:
         raise RuntimeError(f"Prolog execution failed: {e.output}")
 
 
-def classify_area_with_prolog(area: str, prolog_file: str = "prolog.pl") -> dict:
+def classify_area_with_prolog(area: str, prolog_file: str = "prolog.pl", additional_fact: str = None) -> dict:
     """Get fire risk classification for a specific area from Prolog."""
     goal = f'classify_fire_risk_json({area})'
-    output = call_prolog_query(goal, prolog_file)
+    output = call_prolog_query(goal, prolog_file, additional_fact)
     
     if not output:
         return {}
@@ -549,13 +563,15 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
 
     # Step 8: Create dynamic Prolog fact and classify
     print(f"\n🧠 Analyzing fire risk with Prolog...")
-    create_dynamic_prolog_fact(
+    fact = create_dynamic_prolog_fact(
         area_name, fuel, temp_class, hum_class, 
         wind_class, topo_class, pop_density, infrastructure
     )
     
     try:
-        prolog_result = classify_area_with_prolog(area_name)
+        # Pass the fact to Prolog query if in serverless environment
+        additional_fact = fact if IS_SERVERLESS else None
+        prolog_result = classify_area_with_prolog(area_name, additional_fact=additional_fact)
         if prolog_result:
             print(f"   Risk Level: {prolog_result.get('RiskLevel', 'N/A')}")
             print(f"   Evacuation Needed: {prolog_result.get('Evacuation', 'N/A')}")
