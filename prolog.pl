@@ -115,8 +115,9 @@ area_details(area_3, dry, moderate, moderate, moderate, hilly, medium, slightly_
 area_details(area_4, dry, high, low, strong, steep, high, critical).
 area_details(area_5, dry, high, low, strong, steep, high, slightly_critical).
 area_details(frisco_tx, moderate, low, low, moderate, flat, high, no_critical).
-area_details(los_angeles_ca, moist, moderate, very_low, low, flat, high, no_critical).
-area_details(san_francisco_ca, moist, low, moderate, low, flat, high, no_critical).
+area_details(los_angeles_ca, moist, moderate, low, low, flat, high, no_critical).
+area_details(san_francisco_ca, moist, low, high, low, flat, high, no_critical).
+area_details(user_location, moderate, low, low, low, flat, high, no_critical).
 
 % ============================================
 % RISK CLASSIFICATION LOGIC

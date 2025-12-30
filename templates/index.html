@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireGuard - Wildfire Risk Assessment</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔥 FireGuard</h1>
+            <p class="subtitle">Real-Time Wildfire Risk Assessment System</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <h2>Enter Location</h2>
+                <form id="locationForm">
+                    <div class="form-group">
+                        <label for="latitude">Latitude</label>
+                        <input type="number" id="latitude" step="0.0001" required placeholder="e.g., 33.1507">
+                    </div>
+                    <div class="form-group">
+                        <label for="longitude">Longitude</label>
+                        <input type="number" id="longitude" step="0.0001" required placeholder="e.g., -96.8236">
+                    </div>
+                    <div class="form-group">
+                        <label for="areaName">Area Name (Optional)</label>
+                        <input type="text" id="areaName" placeholder="e.g., Frisco, TX">
+                    </div>
+                    <button type="submit" id="analyzeBtn" class="btn-primary">
+                        <span class="btn-text">Analyze Fire Risk</span>
+                        <span class="btn-loader" style="display: none;">⏳ Analyzing...</span>
+                    </button>
+                </form>
+            </div>
+
+            <div id="results" class="results-section" style="display: none;">
+                <h2>Risk Assessment Results</h2>
+                
+                <div class="risk-summary">
+                    <div class="risk-card" id="riskCard">
+                        <div class="risk-level" id="riskLevel">-</div>
+                        <div class="risk-label">Risk Level</div>
+                    </div>
+                    <div class="fdi-card" id="fdiCard">
+                        <div class="fdi-value" id="fdiValue">-</div>
+                        <div class="fdi-label">Fire Danger Index</div>
+                        <div class="fdi-category" id="fdiCategory">-</div>
+                    </div>
+                </div>
+
+                <div class="details-grid">
+                    <div class="detail-card">
+                        <h3>🌤️ Weather Conditions</h3>
+                        <div class="detail-content" id="weatherDetails"></div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <h3>🌧️ Rain History</h3>
+                        <div class="detail-content" id="rainDetails"></div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <h3>🏔️ Topography</h3>
+                        <div class="detail-content" id="topographyDetails"></div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <h3>👥 Population & Infrastructure</h3>
+                        <div class="detail-content" id="populationDetails"></div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <h3>📊 Classifications</h3>
+                        <div class="detail-content" id="classificationsDetails"></div>
+                    </div>
+                    
+                    <div class="detail-card">
+                        <h3>🚨 Recommendations</h3>
+                        <div class="detail-content" id="recommendationsDetails"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="error" class="error-message" style="display: none;"></div>
+        </main>
+
+        <footer>
+            <p>FireGuard - Powered by Python & Prolog</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+
