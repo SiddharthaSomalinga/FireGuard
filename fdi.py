@@ -467,6 +467,62 @@ def call_prolog_query(query: str, prolog_file: str = "prolog.pl", additional_fac
 
 def classify_area_with_prolog(area: str, prolog_file: str = "prolog.pl", additional_fact: str = None) -> dict:
     """Get fire risk classification for a specific area from Prolog."""
+    # In serverless environments, call remote Prolog API service
+    if IS_SERVERLESS:
+        prolog_api_url = os.environ.get('PROLOG_API_URL')
+        if not prolog_api_url:
+            print(f"   ⚠️  PROLOG_API_URL not set. Set it to your Prolog API service URL.")
+            return {
+                'Area': area,
+                'RiskLevel': 'Unknown',
+                'Evacuation': 'no',
+                'Resources': 'fire_engines'
+            }
+        
+        try:
+            # Parse the fact to extract parameters
+            if additional_fact:
+                fact = additional_fact.rstrip('.')
+                import re
+                match = re.match(r'area_details\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)', fact)
+                if match:
+                    _, fuel, temp, hum, wind, topo, pop, infra = match.groups()
+                    
+                    # Call remote Prolog API
+                    response = requests.post(
+                        f"{prolog_api_url}/classify",
+                        json={
+                            'area_name': area,
+                            'fuel': fuel.strip(),
+                            'temp': temp.strip(),
+                            'hum': hum.strip(),
+                            'wind': wind.strip(),
+                            'topo': topo.strip(),
+                            'pop': pop.strip(),
+                            'infra': infra.strip()
+                        },
+                        timeout=30
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get('success'):
+                            return result.get('data', {})
+                    
+                    print(f"   ⚠️  Prolog API error: {response.status_code} - {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"   ⚠️  Failed to connect to Prolog API at {prolog_api_url}: {e}")
+        except Exception as e:
+            print(f"   ⚠️  Prolog API classification error: {e}")
+        
+        return {
+            'Area': area,
+            'RiskLevel': 'Unknown',
+            'Evacuation': 'no',
+            'Resources': 'fire_engines'
+        }
+    
+    # For local development, use Prolog directly
     goal = f'classify_fire_risk_json({area})'
     output = call_prolog_query(goal, prolog_file, additional_fact)
     
