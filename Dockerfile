@@ -11,15 +11,15 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Install Python dependencies for the Prolog API
-COPY requirements_prolog_api.txt /app/requirements_prolog_api.txt
-RUN pip install --no-cache-dir -r /app/requirements_prolog_api.txt
+# Install Python dependencies for the merged Flask app
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy application source
 COPY . /app
 
-# Port used by prolog_api.py (falls back to PORT env var)
-EXPOSE 5001
+# Port used by Flask app (reads PORT env var)
+EXPOSE 5000
 
-# Run the API
-CMD ["python", "prolog_api.py"]
+# Use Gunicorn (production WSGI). Use shell form so $PORT expands at runtime.
+CMD ["sh", "-c", "gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} app:app"]
