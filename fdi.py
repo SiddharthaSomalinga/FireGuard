@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 import subprocess
 import json
 import requests
+import os
 from typing import Dict, Optional
+
+# Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
+IS_SERVERLESS = os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or not os.access('.', os.W_OK)
 
 # ============================================
 # DATA LAYER: Weather & Environmental Data
@@ -15,7 +19,11 @@ from typing import Dict, Optional
 
 def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: int = 90):
     """Fetch historical rain data and calculate days since last rain."""
-    cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
+    # Use in-memory cache for serverless environments, file cache for local
+    if IS_SERVERLESS:
+        cache_session = requests_cache.CachedSession(backend='memory', expire_after=-1)
+    else:
+        cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
     openmeteo = openmeteo_requests.Client(session=retry_session)
 
@@ -58,7 +66,11 @@ def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: i
 
 def get_current_weather(latitude: float, longitude: float):
     """Fetch current weather conditions."""
-    cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
+    # Use in-memory cache for serverless environments, file cache for local
+    if IS_SERVERLESS:
+        cache_session = requests_cache.CachedSession(backend='memory', expire_after=3600)
+    else:
+        cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
     openmeteo = openmeteo_requests.Client(session=retry_session)
 
