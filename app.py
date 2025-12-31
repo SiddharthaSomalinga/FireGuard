@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import numpy as np
+from functools import lru_cache
 
 # Import the fire risk analysis functions
 from fdi import analyze_location_dynamic
@@ -17,6 +18,7 @@ app = Flask(__name__)
 CORS(app)
 
 PROLOG_FILE = "prolog.pl"
+PROLOG_TIMEOUT = 30
 
 def convert_to_native_types(obj):
     """Convert NumPy/pandas types to native Python types for JSON serialization."""
@@ -35,16 +37,19 @@ def convert_to_native_types(obj):
     else:
         return obj
 
+
 def call_prolog_query(query: str) -> str:
-    """Execute a Prolog query and return raw output."""
+    """Execute a Prolog query with timeout protection."""
     cmd = ["swipl", "-q", "-s", PROLOG_FILE, "-g", query, "-t", "halt"]
     try:
-        result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=PROLOG_TIMEOUT)
         if result.returncode != 0:
             raise RuntimeError(f"Prolog error: {result.stderr}")
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
-        raise RuntimeError("Prolog query timed out")
+        raise RuntimeError(f"Prolog query timed out after {PROLOG_TIMEOUT}s")
+    except Exception as e:
+        raise RuntimeError(f"Prolog execution failed: {str(e)}")
 
 # ============= Website & Analysis Routes =============
 
@@ -87,23 +92,28 @@ def prolog_health():
 
 @app.route('/api/prolog/classify', methods=['POST'])
 def prolog_classify():
-    """Classify fire risk for an area using Prolog."""
+    """Classify fire risk for an area using Prolog with better validation."""
     try:
         data = request.get_json()
-        area_name = data.get('area_name')
-        fuel = data.get('fuel')
-        temp = data.get('temp')
-        hum = data.get('hum')
-        wind = data.get('wind')
-        topo = data.get('topo')
-        pop = data.get('pop')
-        infra = data.get('infra')
         
-        if not all([area_name, fuel, temp, hum, wind, topo, pop, infra]):
+        # Required parameters
+        required_params = ['area_name', 'fuel', 'temp', 'hum', 'wind', 'topo', 'pop', 'infra']
+        missing = [p for p in required_params if not data.get(p)]
+        
+        if missing:
             return jsonify({
                 'success': False,
-                'error': 'Missing required parameters'
+                'error': f'Missing required parameters: {", ".join(missing)}'
             }), 400
+        
+        area_name = data['area_name']
+        fuel = data['fuel']
+        temp = data['temp']
+        hum = data['hum']
+        wind = data['wind']
+        topo = data['topo']
+        pop = data['pop']
+        infra = data['infra']
         
         # Create and assert the fact, then query
         fact = f"area_details({area_name}, {fuel}, {temp}, {hum}, {wind}, {topo}, {pop}, {infra})."
@@ -130,7 +140,7 @@ def prolog_classify():
         except json.JSONDecodeError:
             return jsonify({
                 'success': False,
-                'error': f'Invalid JSON from Prolog: {output}'
+                'error': f'Invalid JSON from Prolog'
             }), 500
             
     except Exception as e:

@@ -5,6 +5,18 @@ from retry_requests import retry
 from datetime import datetime, timedelta
 import pandas as pd
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+_CACHE_SESSION = None
+_RETRY_SESSION = None
+
+def _get_session():
+    """Get or create global cached session for connection pooling."""
+    global _CACHE_SESSION, _RETRY_SESSION
+    if _CACHE_SESSION is None:
+        _CACHE_SESSION = requests_cache.CachedSession('.cache', expire_after=3600)
+        _RETRY_SESSION = retry(_CACHE_SESSION, retries=5, backoff_factor=0.2)
+    return _RETRY_SESSION
 
 def test_separator(title):
     """Print a nice separator for test sections."""
@@ -17,8 +29,7 @@ def test_open_meteo_archive():
     test_separator("TEST 1: Open-Meteo Archive API (Historical Rainfall)")
     
     try:
-        cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
-        retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+        retry_session = _get_session()
         openmeteo = openmeteo_requests.Client(session=retry_session)
         
         # Test coordinates: Frisco, TX
@@ -66,8 +77,7 @@ def test_open_meteo_forecast():
     test_separator("TEST 2: Open-Meteo Forecast API (Current Weather)")
     
     try:
-        cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
-        retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+        retry_session = _get_session()
         openmeteo = openmeteo_requests.Client(session=retry_session)
         
         latitude = 33.1507
@@ -298,19 +308,36 @@ def test_overpass():
 
 
 def run_all_tests():
-    """Run all API tests and provide summary."""
+    """Run all API tests in parallel and provide summary."""
     print("\n" + "="*70)
     print("  FIRE RISK API TESTING SUITE")
-    print("  Testing all external APIs used in the system")
+    print("  Testing all external APIs used in the system (Parallel Execution)")
     print("="*70)
     
-    results = {
-        "Open-Meteo Archive (Rain History)": test_open_meteo_archive(),
-        "Open-Meteo Forecast (Current Weather)": test_open_meteo_forecast(),
-        "Open-Elevation (Terrain)": test_open_elevation(),
-        "OSM Nominatim (Population)": test_nominatim(),
-        "OSM Overpass (Infrastructure)": test_overpass(),
-    }
+    test_functions = [
+        ("Open-Meteo Archive (Rain History)", test_open_meteo_archive),
+        ("Open-Meteo Forecast (Current Weather)", test_open_meteo_forecast),
+        ("Open-Elevation (Terrain)", test_open_elevation),
+        ("OSM Nominatim (Population)", test_nominatim),
+        ("OSM Overpass (Infrastructure)", test_overpass),
+    ]
+    
+    results = {}
+    
+    # Run tests in parallel with ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        # Submit all tasks
+        futures = {executor.submit(test_func): test_name for test_name, test_func in test_functions}
+        
+        # Collect results as they complete
+        for future in as_completed(futures):
+            test_name = futures[future]
+            try:
+                result = future.result()
+                results[test_name] = result
+            except Exception as e:
+                print(f"❌ Exception in {test_name}: {e}")
+                results[test_name] = False
     
     # Summary
     test_separator("TEST SUMMARY")

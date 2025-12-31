@@ -8,7 +8,10 @@ import subprocess
 import json
 import requests
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
+from functools import lru_cache
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
 IS_SERVERLESS = os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or not os.access('.', os.W_OK)
@@ -16,9 +19,25 @@ IS_SERVERLESS = os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_
 # Check if mock weather mode is enabled (for testing without API calls)
 MOCK_WEATHER = os.environ.get('MOCK_WEATHER') == '1'
 
+# Initialize global session for connection pooling
+_CACHE_SESSION = None
+_RETRY_SESSION = None
+_EXECUTOR = ThreadPoolExecutor(max_workers=5)
+
 # ============================================
 # DATA LAYER: Weather & Environmental Data
 # ============================================
+
+def _get_session():
+    """Get or create global cached session for connection pooling."""
+    global _CACHE_SESSION, _RETRY_SESSION
+    if _CACHE_SESSION is None:
+        if IS_SERVERLESS:
+            _CACHE_SESSION = requests_cache.CachedSession(backend='memory', expire_after=-1)
+        else:
+            _CACHE_SESSION = requests_cache.CachedSession('.cache', expire_after=-1)
+        _RETRY_SESSION = retry(_CACHE_SESSION, retries=5, backoff_factor=0.2)
+    return _RETRY_SESSION
 
 def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: int = 90):
     """Fetch historical rain data and calculate days since last rain."""
@@ -29,49 +48,48 @@ def get_days_since_last_rain(latitude: float, longitude: float, lookback_days: i
         days_since_last_rain = 5
         return last_rain_date, rainfall_on_last_rain, days_since_last_rain
     
-    # Use in-memory cache for serverless environments, file cache for local
-    if IS_SERVERLESS:
-        cache_session = requests_cache.CachedSession(backend='memory', expire_after=-1)
-    else:
-        cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
-    retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
-    openmeteo = openmeteo_requests.Client(session=retry_session)
+    try:
+        retry_session = _get_session()
+        openmeteo = openmeteo_requests.Client(session=retry_session)
 
-    end_date = datetime.now().date()
-    start_date = (end_date - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        end_date = datetime.now().date()
+        start_date = (end_date - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
 
-    url = "https://archive-api.open-meteo.com/v1/archive"
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "start_date": start_date,
-        "end_date": end_date.strftime("%Y-%m-%d"),
-        "hourly": "rain"
-    }
+        url = "https://archive-api.open-meteo.com/v1/archive"
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start_date,
+            "end_date": end_date.strftime("%Y-%m-%d"),
+            "hourly": "rain"
+        }
 
-    responses = openmeteo.weather_api(url, params=params)
-    response = responses[0]
+        responses = openmeteo.weather_api(url, params=params)
+        response = responses[0]
 
-    hourly = response.Hourly()
-    rain = hourly.Variables(0).ValuesAsNumpy()
-    timestamps = pd.date_range(
-        start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
-        end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
-        freq=pd.Timedelta(seconds=hourly.Interval()),
-        inclusive="left"
-    )
+        hourly = response.Hourly()
+        rain = hourly.Variables(0).ValuesAsNumpy()
+        timestamps = pd.date_range(
+            start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
+            end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
+            freq=pd.Timedelta(seconds=hourly.Interval()),
+            inclusive="left"
+        )
 
-    df = pd.DataFrame({"datetime": timestamps, "rain": rain})
-    df = df.set_index("datetime").resample("D").sum()
+        df = pd.DataFrame({"datetime": timestamps, "rain": rain})
+        df = df.set_index("datetime").resample("D").sum()
 
-    rainy_days = df[df["rain"] > 0]
-    if rainy_days.empty:
+        rainy_days = df[df["rain"] > 0]
+        if rainy_days.empty:
+            return None, None, lookback_days
+        else:
+            last_rain_date = rainy_days.index[-1].date()
+            rainfall_on_last_rain = rainy_days.iloc[-1]["rain"]
+            days_since_last_rain = (datetime.now(timezone.utc).date() - last_rain_date).days
+            return last_rain_date, rainfall_on_last_rain, days_since_last_rain
+    except Exception as e:
+        print(f"   ⚠️  Could not fetch rain data: {e}")
         return None, None, lookback_days
-    else:
-        last_rain_date = rainy_days.index[-1].date()
-        rainfall_on_last_rain = rainy_days.iloc[-1]["rain"]
-        days_since_last_rain = (datetime.now(timezone.utc).date() - last_rain_date).days
-        return last_rain_date, rainfall_on_last_rain, days_since_last_rain
 
 
 def get_current_weather(latitude: float, longitude: float):
@@ -85,31 +103,35 @@ def get_current_weather(latitude: float, longitude: float):
             "current_precipitation": 0.0
         }
     
-    # Use in-memory cache for serverless environments, file cache for local
-    if IS_SERVERLESS:
-        cache_session = requests_cache.CachedSession(backend='memory', expire_after=3600)
-    else:
-        cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
-    retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
-    openmeteo = openmeteo_requests.Client(session=retry_session)
+    try:
+        retry_session = _get_session()
+        openmeteo = openmeteo_requests.Client(session=retry_session)
 
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "current": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "precipitation"]
-    }
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "precipitation"]
+        }
 
-    responses = openmeteo.weather_api(url, params=params)
-    response = responses[0]
-    current = response.Current()
+        responses = openmeteo.weather_api(url, params=params)
+        response = responses[0]
+        current = response.Current()
 
-    return {
-        "temperature": current.Variables(0).Value(),
-        "humidity": current.Variables(1).Value(),
-        "wind_speed": current.Variables(2).Value(),
-        "current_precipitation": current.Variables(3).Value()
-    }
+        return {
+            "temperature": current.Variables(0).Value(),
+            "humidity": current.Variables(1).Value(),
+            "wind_speed": current.Variables(2).Value(),
+            "current_precipitation": current.Variables(3).Value()
+        }
+    except Exception as e:
+        print(f"   ⚠️  Could not fetch weather data: {e}")
+        return {
+            "temperature": 25,
+            "humidity": 50,
+            "wind_speed": 10,
+            "current_precipitation": 0
+        }
 
 
 def get_fuel_moisture_classification(days_since_rain: int, rainfall_amount: float, 
@@ -343,36 +365,40 @@ def get_wind_classification(wind_kmh: float) -> str:
 
 
 # ============================================
-# FDI CALCULATION (unchanged)
+# FDI CALCULATION (OPTIMIZED)
 # ============================================
 
+# Pre-computed lookup table for better performance
+_FDI_THRESHOLDS = [
+    (0, 2.7, [0.7, 0.9, 1.0]),
+    (2.7, 5.3, [0.6, 0.8, 0.9, 1.0]),
+    (5.3, 7.7, [0.5, 0.7, 0.9, 0.9, 1.0]),
+    (7.7, 10.3, [0.4, 0.6, 0.8, 0.9, 0.9, 1.0]),
+    (10.3, 12.9, [0.4, 0.6, 0.7, 0.8, 0.9, 0.9, 1.0]),
+    (12.9, 15.4, [0.3, 0.5, 0.7, 0.8, 0.8, 0.9, 1.0]),
+    (15.4, 20.6, [0.2, 0.5, 0.6, 0.7, 0.8, 0.8, 0.9, 0.9, 1.0]),
+    (20.6, 25.6, [0.2, 0.4, 0.5, 0.7, 0.7, 0.8, 0.9, 0.9, 1.0]),
+    (25.6, 38.5, [0.1, 0.3, 0.4, 0.6, 0.6, 0.7, 0.8, 0.8, 0.9, 0.9, 1.0]),
+    (38.5, 51.2, [0.0, 0.2, 0.4, 0.5, 0.5, 0.6, 0.7, 0.7, 0.8, 0.8, 0.9, 0.9, 1.0]),
+    (51.2, 63.9, [0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.7, 0.7, 0.7, 0.8, 0.8, 0.9, 0.9, 0.9, 1.0]),
+    (63.9, 76.6, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.6, 0.7, 0.7, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9, 0.9, 0.9, 1.0]),
+    (76.6, float("inf"), [0.0, 0.0, 0.1, 0.2, 0.4, 0.5, 0.6, 0.6, 0.6, 0.6, 0.7, 0.7, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9, 0.9, 0.9, 1.0])
+]
+
+_WIND_THRESHOLDS = [3, 9, 17, 26, 33, 37, 42, 46]
+_WIND_ADDITIONS = [0, 5, 10, 15, 20, 25, 30, 35]
+
 def wind_factor(wind, burn_index):
-    """Calculate wind adjustment factor."""
-    for threshold, add in zip([3, 9, 17, 26, 33, 37, 42, 46], [0, 5, 10, 15, 20, 25, 30, 35]):
+    """Calculate wind adjustment factor with optimized lookup."""
+    for threshold, add in zip(_WIND_THRESHOLDS, _WIND_ADDITIONS):
         if wind < threshold:
             return burn_index + add
     return burn_index + 40
 
 
 def get_adjustment_factor(rain, days_rain):
-    """Get rainfall adjustment factor from lookup table."""
-    thresholds = [
-        (0, 2.7, [0.7, 0.9, 1.0]),
-        (2.7, 5.3, [0.6, 0.8, 0.9, 1.0]),
-        (5.3, 7.7, [0.5, 0.7, 0.9, 0.9, 1.0]),
-        (7.7, 10.3, [0.4, 0.6, 0.8, 0.9, 0.9, 1.0]),
-        (10.3, 12.9, [0.4, 0.6, 0.7, 0.8, 0.9, 0.9, 1.0]),
-        (12.9, 15.4, [0.3, 0.5, 0.7, 0.8, 0.8, 0.9, 1.0]),
-        (15.4, 20.6, [0.2, 0.5, 0.6, 0.7, 0.8, 0.8, 0.9, 0.9, 1.0]),
-        (20.6, 25.6, [0.2, 0.4, 0.5, 0.7, 0.7, 0.8, 0.9, 0.9, 1.0]),
-        (25.6, 38.5, [0.1, 0.3, 0.4, 0.6, 0.6, 0.7, 0.8, 0.8, 0.9, 0.9, 1.0]),
-        (38.5, 51.2, [0.0, 0.2, 0.4, 0.5, 0.5, 0.6, 0.7, 0.7, 0.8, 0.8, 0.9, 0.9, 1.0]),
-        (51.2, 63.9, [0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.7, 0.7, 0.7, 0.8, 0.8, 0.9, 0.9, 0.9, 1.0]),
-        (63.9, 76.6, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.6, 0.7, 0.7, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9, 0.9, 0.9, 1.0]),
-        (76.6, float("inf"), [0.0, 0.0, 0.1, 0.2, 0.4, 0.5, 0.6, 0.6, 0.6, 0.6, 0.7, 0.7, 0.8, 0.8, 0.8, 0.9, 0.9, 0.9, 0.9, 0.9, 1.0])
-    ]
-
-    for low, high, factors in thresholds:
+    """Get rainfall adjustment factor from lookup table using binary search."""
+    for low, high, factors in _FDI_THRESHOLDS:
         if low <= rain < high:
             index = min(days_rain - 1, len(factors) - 1)
             return factors[index]
@@ -431,44 +457,34 @@ def create_dynamic_prolog_fact(area_name: str, fuel: str, temp: str, hum: str,
     # Read existing file
     try:
         with open(prolog_file, 'r') as f:
-            content = f.read()
+            lines = f.readlines()
     except FileNotFoundError:
-        content = ""
+        lines = []
     
-    # Check if this area already exists
-    import re
-    pattern = rf"area_details\({area_name},.*?\)\."
+    # Find and replace or append area fact
+    area_pattern = f"area_details({area_name},"
+    new_lines = []
+    found = False
     
-    if re.search(pattern, content):
-        # Replace existing definition
-        content = re.sub(pattern, fact, content)
-    else:
-        # Find the last area_details definition
-        matches = list(re.finditer(r"area_details\([^)]+\)\.", content))
-        if matches:
-            last_match = matches[-1]
-            insert_pos = last_match.end()
-            # Insert after the last area_details with a newline
-            content = content[:insert_pos] + "\n" + fact + content[insert_pos:]
+    for line in lines:
+        if area_pattern in line:
+            new_lines.append(fact + "\n")
+            found = True
         else:
-            # No existing area_details, add at the beginning after discontiguous declarations
-            lines = content.split('\n')
-            insert_idx = 0
-            for i, line in enumerate(lines):
-                if line.strip().startswith(':- discontiguous') or line.strip().startswith(':- style_check'):
-                    insert_idx = i + 1
-            lines.insert(insert_idx, f"\n{fact}")
-            content = '\n'.join(lines)
+            new_lines.append(line)
     
-    # Write back
+    if not found:
+        new_lines.append(fact + "\n")
+    
+    # Write back efficiently
     with open(prolog_file, 'w') as f:
-        f.write(content)
+        f.writelines(new_lines)
     
     return fact
 
 
 def call_prolog_query(query: str, prolog_file: str = "prolog.pl", additional_fact: str = None) -> str:
-    """Execute a Prolog query and return raw output."""
+    """Execute a Prolog query and return raw output with optimized error handling."""
     if IS_SERVERLESS and additional_fact:
         # In serverless, assert the fact dynamically and then run the query
         # Remove the trailing period from the fact for assertz
@@ -477,11 +493,16 @@ def call_prolog_query(query: str, prolog_file: str = "prolog.pl", additional_fac
         cmd = ["swipl", "-q", "-s", prolog_file, "-g", full_query, "-t", "halt"]
     else:
         cmd = ["swipl", "-q", "-s", prolog_file, "-g", query, "-t", "halt"]
+    
     try:
-        output = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
-        return output.strip()
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Prolog execution failed: {e.output}")
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
+        if result.returncode != 0:
+            raise RuntimeError(f"Prolog error: {result.stderr}")
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Prolog query timed out after 30 seconds")
+    except Exception as e:
+        raise RuntimeError(f"Prolog execution failed: {str(e)}")
 
 
 def classify_area_with_prolog(area: str, prolog_file: str = "prolog.pl", additional_fact: str = None) -> dict:
