@@ -156,6 +156,96 @@ def health():
     """Generic health check endpoint."""
     return jsonify({'status': 'ok', 'service': 'merged-api'})
 
+# ============= Chatbot API Routes =============
+
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot():
+    """Process chatbot queries using Prolog."""
+    try:
+        data = request.get_json()
+        query_type = data.get('query_type')
+        params = data.get('params', {})
+        
+        if not query_type:
+            return jsonify({
+                'success': False,
+                'error': 'Missing query_type parameter'
+            }), 400
+        
+        result = process_chatbot_query(query_type, params)
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def process_chatbot_query(query_type, params):
+    """Process different types of chatbot queries."""
+    
+    if query_type == 'fireline_intensity':
+        # Extract parameters
+        I = params.get('I', 0)
+        P = params.get('P', 0)
+        W = params.get('W', 0)
+        S = params.get('S', 0)
+        B = params.get('B', 0)
+        E = params.get('E', 0)
+        H = params.get('H', 0)
+        H_Yield = params.get('H_Yield', 0)
+        A_Fuel = params.get('A_Fuel', 0)
+        
+        query = f"fireline_intensity({I}, {P}, {W}, {S}, {B}, {E}, {H}, {H_Yield}, {A_Fuel})"
+        output = call_prolog_query(query)
+        return {'result': output, 'type': 'fireline_intensity'}
+    
+    elif query_type == 'flame_length':
+        I = params.get('I', 0)
+        query = f"flame_length({I})"
+        output = call_prolog_query(query)
+        return {'result': output, 'type': 'flame_length'}
+    
+    elif query_type == 'safety_zone':
+        C = params.get('C', 0)
+        I = params.get('I', 0)
+        N = params.get('N', 0)
+        query = f"H is {C} * ({I} ** {N}), R is 4 * H, format('Safety Zone: ~2f m~n', [R])"
+        output = call_prolog_query(query)
+        return {'result': output, 'type': 'safety_zone'}
+    
+    elif query_type == 'burn_area':
+        R = params.get('R', 0)
+        T = params.get('T', 0)
+        query = f"calculate_burn_area({R}, {T})"
+        output = call_prolog_query(query)
+        return {'result': output, 'type': 'burn_area'}
+    
+    elif query_type == 'escape_time':
+        D = params.get('D', 0)
+        R = params.get('R', 0)
+        query = f"calculate_escape_time({D}, {R})"
+        output = call_prolog_query(query)
+        return {'result': output, 'type': 'escape_time'}
+    
+    elif query_type == 'risk_level':
+        fuel = params.get('fuel', 'moderate')
+        temp = params.get('temp', 'moderate')
+        hum = params.get('hum', 'moderate')
+        wind = params.get('wind', 'moderate')
+        topo = params.get('topo', 'flat')
+        pop = params.get('pop', 'low')
+        infra = params.get('infra', 'no')
+        
+        query = f"calculate_risk({fuel}, {temp}, {hum}, {wind}, {topo}, {pop}, {infra}, RiskLevel), format('Fire Risk Level: ~w~n', [RiskLevel])"
+        output = call_prolog_query(query)
+        return {'result': output, 'type': 'risk_level'}
+    
+    else:
+        raise ValueError(f'Unknown query type: {query_type}')
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
