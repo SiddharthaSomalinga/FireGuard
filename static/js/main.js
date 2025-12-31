@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Infrastructure</span>
-                <span class="detail-item-value"><span class="badge badge-${getInfraClass(env.infrastructure)}">${env.infrastructure || 'N/A'}</span></span>
+                <span class="detail-item-value"><span class="badge badge-${getInfraClass(env.infrastructure)}">${formatResources(env.infrastructure) || 'N/A'}</span></span>
             </div>
         `;
 
