@@ -209,13 +209,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof resources !== 'string') return resources;
         return resources.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
-});
 
-// ============================================
-// CHATBOT FUNCTIONALITY
-// ============================================
-
-document.addEventListener('DOMContentLoaded', function() {
+    // ============================================
+    // CHATBOT FUNCTIONALITY
+    // ============================================
+    
     const chatbotToggle = document.getElementById('chatbot-toggle');
     const chatbotWindow = document.getElementById('chatbot-window');
     const chatbotInput = document.getElementById('chatbot-input');
@@ -223,207 +221,210 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatbotMessages = document.getElementById('chatbot-messages');
     const quickActionBtns = document.querySelectorAll('.quick-action-btn');
     
-    let currentQuery = null;
-    let awaitingParams = false;
-    let paramSteps = [];
-    let currentParamIndex = 0;
-    let collectedParams = {};
+    // Only initialize chatbot if all elements exist
+    if (chatbotToggle && chatbotWindow && chatbotInput && chatbotSend && chatbotMessages) {
+        let currentQuery = null;
+        let awaitingParams = false;
+        let paramSteps = [];
+        let currentParamIndex = 0;
+        let collectedParams = {};
 
-    // Toggle chatbot window
-    chatbotToggle.addEventListener('click', function() {
-        const isOpen = chatbotWindow.style.display === 'block';
-        chatbotWindow.style.display = isOpen ? 'none' : 'block';
-        document.querySelector('.chatbot-icon').style.display = isOpen ? 'inline' : 'none';
-        document.querySelector('.chatbot-close-icon').style.display = isOpen ? 'none' : 'inline';
-    });
-
-    // Quick action buttons
-    quickActionBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const action = this.getAttribute('data-action');
-            handleQuickAction(action);
+        // Toggle chatbot window
+        chatbotToggle.addEventListener('click', function() {
+            const isOpen = chatbotWindow.style.display === 'block';
+            chatbotWindow.style.display = isOpen ? 'none' : 'block';
+            document.querySelector('.chatbot-icon').style.display = isOpen ? 'inline' : 'none';
+            document.querySelector('.chatbot-close-icon').style.display = isOpen ? 'none' : 'inline';
         });
-    });
 
-    // Send message on button click
-    chatbotSend.addEventListener('click', sendMessage);
-
-    // Send message on Enter key
-    chatbotInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-
-    function sendMessage() {
-        const message = chatbotInput.value.trim();
-        if (!message) return;
-
-        addMessage(message, 'user');
-        chatbotInput.value = '';
-
-        if (awaitingParams) {
-            handleParamInput(message);
-        } else {
-            processMessage(message);
-        }
-    }
-
-    function addMessage(text, type) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `chatbot-message ${type}-message`;
-        messageDiv.innerHTML = `<div class="message-content">${text}</div>`;
-        chatbotMessages.appendChild(messageDiv);
-        chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
-    }
-
-    function handleQuickAction(action) {
-        currentQuery = action;
-        awaitingParams = true;
-        currentParamIndex = 0;
-        collectedParams = {};
-
-        switch(action) {
-            case 'fireline_intensity':
-                paramSteps = [
-                    { name: 'I', label: 'Reaction Intensity (I)' },
-                    { name: 'P', label: 'Propagating Flux Ratio (P)' },
-                    { name: 'W', label: 'Wind Factor (W)' },
-                    { name: 'S', label: 'Slope Factor (S)' },
-                    { name: 'B', label: 'Bulk Density (B)' },
-                    { name: 'E', label: 'Effective Heating Number (E)' },
-                    { name: 'H', label: 'Heat of Preignition (H)' },
-                    { name: 'H_Yield', label: 'Heat Yield' },
-                    { name: 'A_Fuel', label: 'Amount of Fuel Consumed' }
-                ];
-                addMessage('🔥 Fireline Intensity Calculator<br><br>Please provide the following values:', 'bot');
-                askNextParam();
-                break;
-
-            case 'flame_length':
-                paramSteps = [
-                    { name: 'I', label: 'Fireline Intensity (I)' }
-                ];
-                addMessage('📏 Flame Length Calculator<br><br>Please provide:', 'bot');
-                askNextParam();
-                break;
-
-            case 'safety_zone':
-                paramSteps = [
-                    { name: 'C', label: 'Empirical Constant (C)' },
-                    { name: 'I', label: 'Fireline Intensity (I)' },
-                    { name: 'N', label: 'Exponent (N)' }
-                ];
-                addMessage('🛡️ Safety Zone Calculator<br><br>Please provide:', 'bot');
-                askNextParam();
-                break;
-
-            case 'burn_area':
-                paramSteps = [
-                    { name: 'R', label: 'Rate of fire spread (R) in ft/min' },
-                    { name: 'T', label: 'Time elapsed since ignition (T) in minutes' }
-                ];
-                addMessage('📊 Burn Area Estimator<br><br>Please provide:', 'bot');
-                askNextParam();
-                break;
-
-            case 'escape_time':
-                paramSteps = [
-                    { name: 'D', label: 'Distance to nearest safe zone (D) in meters' },
-                    { name: 'R', label: 'Rate of fire spread (R) in m/s' }
-                ];
-                addMessage('⏱️ Escape Time Calculator<br><br>Please provide:', 'bot');
-                askNextParam();
-                break;
-
-            case 'risk_level':
-                paramSteps = [
-                    { name: 'fuel', label: 'Fuel type (moist, moderate, dry, extremely_dry)' },
-                    { name: 'temp', label: 'Temperature (low, moderate, high, very_high)' },
-                    { name: 'hum', label: 'Humidity (high, moderate, low, very_low)' },
-                    { name: 'wind', label: 'Wind speed (low, moderate, strong, extreme)' },
-                    { name: 'topo', label: 'Topography (flat, hilly, steep, very_steep)' },
-                    { name: 'pop', label: 'Population density (low, medium, high)' },
-                    { name: 'infra', label: 'Infrastructure (no, no_critical, slightly_critical, critical)' }
-                ];
-                addMessage('⚠️ Risk Level Assessment<br><br>Please provide the following classifications:', 'bot');
-                askNextParam();
-                break;
-        }
-    }
-
-    function askNextParam() {
-        if (currentParamIndex < paramSteps.length) {
-            const param = paramSteps[currentParamIndex];
-            addMessage(`${currentParamIndex + 1}. ${param.label}:`, 'bot');
-        }
-    }
-
-    function handleParamInput(value) {
-        const param = paramSteps[currentParamIndex];
-        collectedParams[param.name] = isNaN(value) ? value : parseFloat(value);
-        
-        currentParamIndex++;
-        
-        if (currentParamIndex < paramSteps.length) {
-            askNextParam();
-        } else {
-            awaitingParams = false;
-            executeChatbotQuery();
-        }
-    }
-
-    async function executeChatbotQuery() {
-        addMessage('<div class="chatbot-loading"></div> Calculating...', 'bot');
-        
-        try {
-            const response = await fetch('/api/chatbot', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    query_type: currentQuery,
-                    params: collectedParams
-                })
+        // Quick action buttons
+        quickActionBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const action = this.getAttribute('data-action');
+                handleQuickAction(action);
             });
+        });
 
-            const data = await response.json();
+        // Send message on button click
+        chatbotSend.addEventListener('click', sendMessage);
 
-            // Remove loading message
-            chatbotMessages.removeChild(chatbotMessages.lastChild);
-
-            if (data.success) {
-                const result = data.data.result || 'Calculation complete!';
-                addMessage(`✅ Result:<br><br>${result}`, 'bot');
-            } else {
-                addMessage(`❌ Error: ${data.error}`, 'bot');
+        // Send message on Enter key
+        chatbotInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
             }
-        } catch (error) {
-            chatbotMessages.removeChild(chatbotMessages.lastChild);
-            addMessage(`❌ Failed to connect: ${error.message}`, 'bot');
+        });
+
+        function sendMessage() {
+            const message = chatbotInput.value.trim();
+            if (!message) return;
+
+            addMessage(message, 'user');
+            chatbotInput.value = '';
+
+            if (awaitingParams) {
+                handleParamInput(message);
+            } else {
+                processMessage(message);
+            }
         }
 
-        // Reset state
-        currentQuery = null;
-        collectedParams = {};
-        currentParamIndex = 0;
-    }
+        function addMessage(text, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chatbot-message ${type}-message`;
+            messageDiv.innerHTML = `<div class="message-content">${text}</div>`;
+            chatbotMessages.appendChild(messageDiv);
+            chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+        }
 
-    function processMessage(message) {
-        const lowerMsg = message.toLowerCase();
-        
-        if (lowerMsg.includes('help') || lowerMsg.includes('what can you do')) {
-            addMessage('I can help you with:<br><ul>' +
-                '<li>🔥 Fireline Intensity calculations</li>' +
-                '<li>📏 Flame Length estimates</li>' +
-                '<li>🛡️ Safety Zone distances</li>' +
-                '<li>📊 Burn Area estimations</li>' +
-                '<li>⏱️ Escape Time calculations</li>' +
-                '<li>⚠️ Risk Level assessments</li>' +
-                '</ul><br>Click any button above to start!', 'bot');
-        } else {
-            addMessage('I\'m not sure how to help with that. Try clicking one of the buttons above or ask for "help".', 'bot');
+        function handleQuickAction(action) {
+            currentQuery = action;
+            awaitingParams = true;
+            currentParamIndex = 0;
+            collectedParams = {};
+
+            switch(action) {
+                case 'fireline_intensity':
+                    paramSteps = [
+                        { name: 'I', label: 'Reaction Intensity (I)' },
+                        { name: 'P', label: 'Propagating Flux Ratio (P)' },
+                        { name: 'W', label: 'Wind Factor (W)' },
+                        { name: 'S', label: 'Slope Factor (S)' },
+                        { name: 'B', label: 'Bulk Density (B)' },
+                        { name: 'E', label: 'Effective Heating Number (E)' },
+                        { name: 'H', label: 'Heat of Preignition (H)' },
+                        { name: 'H_Yield', label: 'Heat Yield' },
+                        { name: 'A_Fuel', label: 'Amount of Fuel Consumed' }
+                    ];
+                    addMessage('🔥 Fireline Intensity Calculator<br><br>Please provide the following values:', 'bot');
+                    askNextParam();
+                    break;
+
+                case 'flame_length':
+                    paramSteps = [
+                        { name: 'I', label: 'Fireline Intensity (I)' }
+                    ];
+                    addMessage('📏 Flame Length Calculator<br><br>Please provide:', 'bot');
+                    askNextParam();
+                    break;
+
+                case 'safety_zone':
+                    paramSteps = [
+                        { name: 'C', label: 'Empirical Constant (C)' },
+                        { name: 'I', label: 'Fireline Intensity (I)' },
+                        { name: 'N', label: 'Exponent (N)' }
+                    ];
+                    addMessage('🛡️ Safety Zone Calculator<br><br>Please provide:', 'bot');
+                    askNextParam();
+                    break;
+
+                case 'burn_area':
+                    paramSteps = [
+                        { name: 'R', label: 'Rate of fire spread (R) in ft/min' },
+                        { name: 'T', label: 'Time elapsed since ignition (T) in minutes' }
+                    ];
+                    addMessage('📊 Burn Area Estimator<br><br>Please provide:', 'bot');
+                    askNextParam();
+                    break;
+
+                case 'escape_time':
+                    paramSteps = [
+                        { name: 'D', label: 'Distance to nearest safe zone (D) in meters' },
+                        { name: 'R', label: 'Rate of fire spread (R) in m/s' }
+                    ];
+                    addMessage('⏱️ Escape Time Calculator<br><br>Please provide:', 'bot');
+                    askNextParam();
+                    break;
+
+                case 'risk_level':
+                    paramSteps = [
+                        { name: 'fuel', label: 'Fuel type (moist, moderate, dry, extremely_dry)' },
+                        { name: 'temp', label: 'Temperature (low, moderate, high, very_high)' },
+                        { name: 'hum', label: 'Humidity (high, moderate, low, very_low)' },
+                        { name: 'wind', label: 'Wind speed (low, moderate, strong, extreme)' },
+                        { name: 'topo', label: 'Topography (flat, hilly, steep, very_steep)' },
+                        { name: 'pop', label: 'Population density (low, medium, high)' },
+                        { name: 'infra', label: 'Infrastructure (no, no_critical, slightly_critical, critical)' }
+                    ];
+                    addMessage('⚠️ Risk Level Assessment<br><br>Please provide the following classifications:', 'bot');
+                    askNextParam();
+                    break;
+            }
+        }
+
+        function askNextParam() {
+            if (currentParamIndex < paramSteps.length) {
+                const param = paramSteps[currentParamIndex];
+                addMessage(`${currentParamIndex + 1}. ${param.label}:`, 'bot');
+            }
+        }
+
+        function handleParamInput(value) {
+            const param = paramSteps[currentParamIndex];
+            collectedParams[param.name] = isNaN(value) ? value : parseFloat(value);
+            
+            currentParamIndex++;
+            
+            if (currentParamIndex < paramSteps.length) {
+                askNextParam();
+            } else {
+                awaitingParams = false;
+                executeChatbotQuery();
+            }
+        }
+
+        async function executeChatbotQuery() {
+            addMessage('<div class="chatbot-loading"></div> Calculating...', 'bot');
+            
+            try {
+                const response = await fetch('/api/chatbot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query_type: currentQuery,
+                        params: collectedParams
+                    })
+                });
+
+                const data = await response.json();
+
+                // Remove loading message
+                chatbotMessages.removeChild(chatbotMessages.lastChild);
+
+                if (data.success) {
+                    const result = data.data.result || 'Calculation complete!';
+                    addMessage(`✅ Result:<br><br>${result}`, 'bot');
+                } else {
+                    addMessage(`❌ Error: ${data.error}`, 'bot');
+                }
+            } catch (error) {
+                chatbotMessages.removeChild(chatbotMessages.lastChild);
+                addMessage(`❌ Failed to connect: ${error.message}`, 'bot');
+            }
+
+            // Reset state
+            currentQuery = null;
+            collectedParams = {};
+            currentParamIndex = 0;
+        }
+
+        function processMessage(message) {
+            const lowerMsg = message.toLowerCase();
+            
+            if (lowerMsg.includes('help') || lowerMsg.includes('what can you do')) {
+                addMessage('I can help you with:<br><ul>' +
+                    '<li>🔥 Fireline Intensity calculations</li>' +
+                    '<li>📏 Flame Length estimates</li>' +
+                    '<li>🛡️ Safety Zone distances</li>' +
+                    '<li>📊 Burn Area estimations</li>' +
+                    '<li>⏱️ Escape Time calculations</li>' +
+                    '<li>⚠️ Risk Level assessments</li>' +
+                    '</ul><br>Click any button above to start!', 'bot');
+            } else {
+                addMessage('I\'m not sure how to help with that. Try clicking one of the buttons above or ask for "help".', 'bot');
+            }
         }
     }
 });
