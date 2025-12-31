@@ -368,6 +368,7 @@ footer {
     color: var(--white);
     padding: 1.25rem;
     border-radius: 12px 12px 0 0;
+    flex-shrink: 0;
 }
 
 .chatbot-header h3 {
@@ -383,10 +384,12 @@ footer {
 }
 
 .chatbot-messages {
-    flex: 1;
+    flex: 1 1 auto;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 1rem;
     background: #f9fafb;
+    max-height: 320px;
 }
 
 .chatbot-message {
@@ -446,6 +449,8 @@ footer {
     background: var(--white);
     border-top: 1px solid var(--border-color);
     overflow-x: auto;
+    flex-shrink: 0;
+    max-height: 100px;
 }
 
 .quick-action-btn {
@@ -472,6 +477,7 @@ footer {
     padding: 1rem;
     background: var(--white);
     border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .chatbot-input {

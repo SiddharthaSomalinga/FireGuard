@@ -413,6 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function processMessage(message) {
             const lowerMsg = message.toLowerCase();
             
+            // Check for help requests
             if (lowerMsg.includes('help') || lowerMsg.includes('what can you do')) {
                 addMessage('I can help you with:<br><ul>' +
                     '<li>🔥 Fireline Intensity calculations</li>' +
@@ -422,8 +423,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     '<li>⏱️ Escape Time calculations</li>' +
                     '<li>⚠️ Risk Level assessments</li>' +
                     '</ul><br>Click any button above to start!', 'bot');
+                return;
+            }
+            
+            // Check for specific calculation requests
+            if (lowerMsg.includes('fireline') || lowerMsg.includes('fire line') || lowerMsg.includes('intensity')) {
+                handleQuickAction('fireline_intensity');
+            } else if (lowerMsg.includes('flame') && lowerMsg.includes('length')) {
+                handleQuickAction('flame_length');
+            } else if (lowerMsg.includes('safety') && (lowerMsg.includes('zone') || lowerMsg.includes('distance'))) {
+                handleQuickAction('safety_zone');
+            } else if (lowerMsg.includes('burn') && lowerMsg.includes('area')) {
+                handleQuickAction('burn_area');
+            } else if (lowerMsg.includes('escape') && lowerMsg.includes('time')) {
+                handleQuickAction('escape_time');
+            } else if (lowerMsg.includes('risk') && lowerMsg.includes('level')) {
+                handleQuickAction('risk_level');
             } else {
-                addMessage('I\'m not sure how to help with that. Try clicking one of the buttons above or ask for "help".', 'bot');
+                addMessage('I\'m not sure how to help with that. You can:<br><br>' +
+                    '• Type "<b>help</b>" to see what I can do<br>' +
+                    '• Type a calculation name (e.g., "Fireline Intensity")<br>' +
+                    '• Click one of the buttons above', 'bot');
             }
         }
     }
