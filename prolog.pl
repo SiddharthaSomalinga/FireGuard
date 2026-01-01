@@ -118,7 +118,7 @@ area_details(area_5, dry, high, low, strong, steep, high, slightly_critical).
 area_details(frisco_tx, moderate, low, low, moderate, flat, high, no_critical).
 area_details(los_angeles_ca, moist, moderate, low, low, flat, high, no_critical).
 area_details(san_francisco_ca, moist, low, high, low, flat, high, no_critical).
-area_details(user_location, moderate, low, low, low, flat, high, no_critical).
+area_details(user_location, moderate, low, low, moderate, flat, high, no_critical).
 area_details(frisco_test, moist, high, low, moderate, flat, high, no_critical).
 
 % ============================================
@@ -278,4 +278,7 @@ handle_input(risk_level) :-
     write('Fire Risk Level: '), write(RiskLevel), nl.
 
 handle_input(exit) :-
-    write('Goodbye!'), nl.
+    write('Goodbye!'), nl.area_details(My Location (33.1960, -96.7633), moderate, low, low, moderate, flat, high, no_critical).
+area_details(Southern California (LA/Ventura), moist, low, high, strong, hilly, low, no_critical).
+area_details(socal, dry, low, very_low, low, flat, low, no_critical).
+area_details(texas, moist, moderate, very_low, moderate, flat, high, no_critical).

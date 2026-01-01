@@ -3,13 +3,89 @@ document.addEventListener('DOMContentLoaded', function() {
     const analyzeBtn = document.getElementById('analyzeBtn');
     const resultsSection = document.getElementById('results');
     const errorDiv = document.getElementById('error');
+    const useLocationBtn = document.getElementById('useLocationBtn');
+    const latitudeInput = document.getElementById('latitude');
+    const longitudeInput = document.getElementById('longitude');
+    const areaNameInput = document.getElementById('areaName');
+
+    // Handle "Use My Location" button
+    useLocationBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        useLocationBtn.disabled = true;
+        useLocationBtn.textContent = '📍 Getting location...';
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude.toFixed(4);
+                    const lon = position.coords.longitude.toFixed(4);
+                    
+                    latitudeInput.value = lat;
+                    longitudeInput.value = lon;
+                    
+                    // Auto-generate area name if not provided
+                    if (!areaNameInput.value) {
+                        areaNameInput.value = `My Location (${lat}, ${lon})`;
+                    }
+                    
+                    useLocationBtn.disabled = false;
+                    useLocationBtn.textContent = '📍 Use My Location';
+                    errorDiv.style.display = 'none';
+                    
+                    // Focus on the form for better UX
+                    analyzeBtn.focus();
+                },
+                function(error) {
+                    let errorMsg = 'Unable to get your location. ';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        errorMsg += 'Please enable location access in your browser settings.';
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        errorMsg += 'Location information is unavailable.';
+                    } else if (error.code === error.TIMEOUT) {
+                        errorMsg += 'The request to get user location timed out.';
+                    } else {
+                        errorMsg += 'An error occurred while retrieving your location.';
+                    }
+                    showError(errorMsg);
+                    useLocationBtn.disabled = false;
+                    useLocationBtn.textContent = '📍 Use My Location';
+                }
+            );
+        } else {
+            showError('Geolocation is not supported by your browser.');
+            useLocationBtn.disabled = false;
+            useLocationBtn.textContent = '📍 Use My Location';
+        }
+    });
+
+    // Handle preset buttons
+    const presetBtns = document.querySelectorAll('.preset-btn');
+    presetBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const lat = this.getAttribute('data-lat');
+            const lon = this.getAttribute('data-lon');
+            const name = this.getAttribute('data-name');
+            const display = this.getAttribute('data-display');
+            
+            latitudeInput.value = lat;
+            longitudeInput.value = lon;
+            // Store Prolog-safe name in a data attribute for the form submission
+            latitudeInput.dataset.prologName = name;
+            areaNameInput.value = display;
+            
+            errorDiv.style.display = 'none';
+            analyzeBtn.focus();
+        });
+    });
 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const latitude = parseFloat(document.getElementById('latitude').value);
         const longitude = parseFloat(document.getElementById('longitude').value);
-        const areaName = document.getElementById('areaName').value || 'user_location';
+        // Use Prolog-safe name if set (from preset), otherwise use areaName field
+        const areaName = latitudeInput.dataset.prologName || document.getElementById('areaName').value || 'user_location';
 
         // Validate inputs
         if (isNaN(latitude) || isNaN(longitude)) {

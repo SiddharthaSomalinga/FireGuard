@@ -16,6 +16,20 @@
         <main>
             <div class="input-section">
                 <h2>Enter Location</h2>
+                <button type="button" id="useLocationBtn" class="btn-secondary">📍 Use My Location</button>
+                
+                <div class="presets-section">
+                    <p class="presets-label">Quick Presets (USA Wildfire Zones):</p>
+                    <div class="presets-grid">
+                        <button type="button" class="preset-btn" data-lat="34.5" data-lon="-118.2" data-name="socal" data-display="Southern California (LA/Ventura)">🔥 SoCal</button>
+                        <button type="button" class="preset-btn" data-lat="37.8" data-lon="-122.2" data-name="norcal" data-display="Northern California (Bay Area)">🔥 NorCal</button>
+                        <button type="button" class="preset-btn" data-lat="45.5" data-lon="-122.6" data-name="pacific_nw" data-display="Oregon/Washington (Portland)">🌲 Pacific NW</button>
+                        <button type="button" class="preset-btn" data-lat="39.7" data-lon="-104.9" data-name="colorado" data-display="Colorado (Front Range)">⛰️ Colorado</button>
+                        <button type="button" class="preset-btn" data-lat="33.4" data-lon="-112.0" data-name="arizona" data-display="Arizona (Phoenix)">🏜️ Arizona</button>
+                        <button type="button" class="preset-btn" data-lat="30.2" data-lon="-97.7" data-name="texas" data-display="Texas (Central)">🤠 Texas</button>
+                    </div>
+                </div>
+                
                 <form id="locationForm">
                     <div class="form-group">
                         <label for="latitude">Latitude</label>
