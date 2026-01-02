@@ -226,37 +226,100 @@ header h1 {
     text-align: center;
     box-shadow: var(--shadow-lg);
     border-top: 4px solid var(--primary-red);
-    transition: transform 0.3s;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
 }
 
 .risk-card:hover, .fdi-card:hover {
     transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
+/* Risk level color coding with enhanced visuals */
 .risk-card.risk-extreme {
-    border-top-color: #991b1b;
-    background: linear-gradient(135deg, #fee2e2 0%, #ffffff 100%);
+    border-top-color: #7f1d1d;
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+    animation: pulse-extreme 2s ease-in-out infinite;
+    box-shadow: 0 0 30px rgba(127, 29, 29, 0.5);
+}
+
+.risk-card.risk-extreme .risk-level,
+.risk-card.risk-extreme .risk-label {
+    color: #ffffff;
 }
 
 .risk-card.risk-very-high {
-    border-top-color: #dc2626;
-    background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+    border-top-color: #991b1b;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    animation: pulse-very-high 2.5s ease-in-out infinite;
+    box-shadow: 0 0 25px rgba(220, 38, 38, 0.4);
+}
+
+.risk-card.risk-very-high .risk-level,
+.risk-card.risk-very-high .risk-label {
+    color: #ffffff;
 }
 
 .risk-card.risk-high {
-    border-top-color: #ef4444;
+    border-top-color: #dc2626;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 3px solid #dc2626;
+}
+
+.risk-card.risk-high .risk-level {
+    color: #dc2626;
 }
 
 .risk-card.risk-medium {
     border-top-color: #f59e0b;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 3px solid #f59e0b;
+}
+
+.risk-card.risk-medium .risk-level {
+    color: #d97706;
 }
 
 .risk-card.risk-low {
     border-top-color: #10b981;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 3px solid #10b981;
+}
+
+.risk-card.risk-low .risk-level {
+    color: #059669;
 }
 
 .risk-card.risk-very-low {
     border-top-color: #059669;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 3px solid #059669;
+}
+
+.risk-card.risk-very-low .risk-level {
+    color: #047857;
+}
+
+/* Pulsing animations for critical risk levels */
+@keyframes pulse-extreme {
+    0%, 100% {
+        box-shadow: 0 0 30px rgba(127, 29, 29, 0.5);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 50px rgba(127, 29, 29, 0.8);
+        transform: scale(1.02);
+    }
+}
+
+@keyframes pulse-very-high {
+    0%, 100% {
+        box-shadow: 0 0 25px rgba(220, 38, 38, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(220, 38, 38, 0.6);
+    }
 }
 
 .risk-level {
@@ -264,13 +327,31 @@ header h1 {
     font-weight: 700;
     color: var(--primary-red);
     margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
+
+.risk-level::before {
+    content: '';
+    font-size: 2rem;
+}
+
+/* Risk level icons */
+.risk-extreme .risk-level::before { content: '🚨'; }
+.risk-very-high .risk-level::before { content: '⚠️'; }
+.risk-high .risk-level::before { content: '🔥'; }
+.risk-medium .risk-level::before { content: '⚡'; }
+.risk-low .risk-level::before { content: '✓'; }
+.risk-very-low .risk-level::before { content: '✅'; }
 
 .risk-label {
     color: var(--text-light);
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 1px;
+    font-weight: 600;
 }
 
 .fdi-value {
@@ -286,6 +367,7 @@ header h1 {
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 0.5rem;
+    font-weight: 600;
 }
 
 .fdi-category {
@@ -294,8 +376,41 @@ header h1 {
     color: var(--text-dark);
     padding: 0.5rem 1rem;
     background: var(--light-red);
-    border-radius: 6px;
+    border-radius: 20px;
     display: inline-block;
+    border: 2px solid;
+}
+
+/* FDI category color coding */
+.fdi-category.fdi-blue {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    border-color: #3b82f6;
+    color: #1e40af;
+}
+
+.fdi-category.fdi-green {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-color: #10b981;
+    color: #047857;
+}
+
+.fdi-category.fdi-yellow {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+.fdi-category.fdi-orange {
+    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+    border-color: #f97316;
+    color: #9a3412;
+}
+
+.fdi-category.fdi-red {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+    border-color: #ef4444;
+    color: #991b1b;
+    font-weight: 700;
 }
 
 .details-grid {
@@ -345,41 +460,91 @@ header h1 {
 
 .badge {
     display: inline-block;
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
+    padding: 0.35rem 0.85rem;
+    border-radius: 16px;
     font-size: 0.85rem;
     font-weight: 600;
     text-transform: capitalize;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.badge:hover {
+    transform: scale(1.05);
 }
 
 .badge-extreme {
-    background: #fee2e2;
-    color: #991b1b;
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+    color: #ffffff;
+    border-color: #7f1d1d;
+    box-shadow: 0 2px 8px rgba(127, 29, 29, 0.4);
 }
 
+.badge-very_high,
 .badge-very-high {
-    background: #fef3c7;
-    color: #92400e;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: #ffffff;
+    border-color: #dc2626;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
 }
 
 .badge-high {
-    background: #fed7aa;
-    color: #9a3412;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    color: #991b1b;
+    border-color: #ef4444;
 }
 
-.badge-medium {
-    background: #dbeafe;
-    color: #1e40af;
+.badge-medium,
+.badge-moderate {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+    border-color: #f59e0b;
 }
 
 .badge-low {
-    background: #dcfce7;
-    color: #166534;
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
+    border-color: #10b981;
 }
 
+.badge-very_low,
 .badge-very-low {
-    background: #f0fdf4;
-    color: #15803d;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    color: #065f46;
+    border-color: #059669;
+}
+
+/* Additional badge colors for various classifications */
+.badge-flat {
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    color: #075985;
+    border-color: #0284c7;
+}
+
+.badge-steep,
+.badge-very_steep {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+    border-color: #f59e0b;
+}
+
+.badge-critical,
+.badge-yes {
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: #ffffff;
+    border-color: #dc2626;
+}
+
+.badge-no {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
+    border-color: #10b981;
+}
+
+.badge-maybe {
+    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+    color: #9a3412;
+    border-color: #f97316;
 }
 
 .error-message {

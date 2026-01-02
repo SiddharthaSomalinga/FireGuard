@@ -146,11 +146,13 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('riskLevel').textContent = riskLevel;
         document.getElementById('riskCard').className = 'risk-card ' + getRiskClass(riskLevel);
 
-        // Display FDI
+        // Display FDI with color coding
         const fdiValue = data.fdi?.value || 0;
         const fdiCategory = data.fdi?.category || 'Unknown';
         document.getElementById('fdiValue').textContent = fdiValue;
-        document.getElementById('fdiCategory').textContent = fdiCategory;
+        const fdiCategoryEl = document.getElementById('fdiCategory');
+        fdiCategoryEl.textContent = fdiCategory;
+        fdiCategoryEl.className = 'fdi-category ' + getFDIClass(fdiCategory);
 
         // Display weather details
         const weather = data.weather_data || {};
@@ -272,6 +274,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (level.includes('medium')) return 'risk-medium';
         if (level.includes('low')) return 'risk-low';
         return 'risk-very-low';
+    }
+
+    function getFDIClass(category) {
+        const cat = category.toLowerCase();
+        if (cat.includes('blue')) return 'fdi-blue';
+        if (cat.includes('green')) return 'fdi-green';
+        if (cat.includes('yellow')) return 'fdi-yellow';
+        if (cat.includes('orange')) return 'fdi-orange';
+        if (cat.includes('red')) return 'fdi-red';
+        return '';
     }
 
     function getInfraClass(infra) {
