@@ -16,14 +16,40 @@
     --border-color: #e5e7eb;
     --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    
+    /* Light mode background colors */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-gradient: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+/* Dark mode variables */
+html.dark-mode {
+    --primary-red: #ef4444;
+    --dark-red: #dc2626;
+    --light-red: #7f1d1d;
+    --lighter-red: #5a1616;
+    --accent-red: #f87171;
+    --text-dark: #f3f4f6;
+    --text-light: #d1d5db;
+    --white: #1f2937;
+    --border-color: #374151;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    
+    /* Dark mode background colors */
+    --bg-primary: #1f2937;
+    --bg-secondary: #111827;
+    --bg-gradient: linear-gradient(135deg, #1f2937 0%, #111827 100%);
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: linear-gradient(135deg, var(--lighter-red) 0%, var(--white) 100%);
+    background: var(--bg-gradient);
     color: var(--text-dark);
     line-height: 1.6;
     min-height: 100vh;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
@@ -33,9 +59,51 @@ body {
 }
 
 header {
-    text-align: center;
     margin-bottom: 3rem;
     padding: 2rem 0;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 2rem;
+}
+
+.header-top > div {
+    text-align: center;
+    flex: 1;
+}
+
+.theme-toggle {
+    background: none;
+    border: 2px solid var(--text-light);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: all 0.3s ease;
+    margin-top: 0.5rem;
+    flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+    border-color: var(--primary-red);
+    background: rgba(220, 38, 38, 0.1);
+    transform: scale(1.1);
+}
+
+.theme-icon {
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
+.theme-toggle:active {
+    transform: scale(0.95);
 }
 
 header h1 {
@@ -53,11 +121,13 @@ header h1 {
 }
 
 .input-section {
-    background: var(--white);
+    background: var(--bg-primary);
     border-radius: 12px;
     padding: 2rem;
     box-shadow: var(--shadow-lg);
     margin-bottom: 2rem;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid var(--border-color);
 }
 
 .input-section h2 {
@@ -83,7 +153,13 @@ header h1 {
     border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: 1rem;
-    transition: border-color 0.3s;
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+    background-color: var(--bg-primary);
+    color: var(--text-dark);
+}
+
+.form-group input::placeholder {
+    color: var(--text-light);
 }
 
 .form-group input:focus {
@@ -220,7 +296,7 @@ header h1 {
 }
 
 .risk-card, .fdi-card {
-    background: var(--white);
+    background: var(--bg-primary);
     border-radius: 12px;
     padding: 2rem;
     text-align: center;
@@ -229,6 +305,7 @@ header h1 {
     transition: all 0.3s;
     position: relative;
     overflow: hidden;
+    border: 1px solid var(--border-color);
 }
 
 .risk-card:hover, .fdi-card:hover {
@@ -420,11 +497,13 @@ header h1 {
 }
 
 .detail-card {
-    background: var(--white);
+    background: var(--bg-primary);
     border-radius: 12px;
     padding: 1.5rem;
     box-shadow: var(--shadow);
     border-left: 4px solid var(--primary-red);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid var(--border-color);
 }
 
 .detail-card h3 {
@@ -548,12 +627,13 @@ header h1 {
 }
 
 .error-message {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--light-red);
+    color: var(--text-dark);
     padding: 1rem;
     border-radius: 8px;
     margin-top: 1rem;
     border-left: 4px solid var(--primary-red);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 footer {
@@ -601,12 +681,14 @@ footer {
     right: 0;
     width: 380px;
     height: 600px;
-    background: var(--white);
+    background: var(--bg-primary);
     border-radius: 12px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease;
 }
 
 .chatbot-header {
@@ -634,8 +716,9 @@ footer {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 1rem;
-    background: #f9fafb;
+    background: var(--bg-secondary);
     max-height: 320px;
+    transition: background-color 0.3s ease;
 }
 
 .chatbot-message {
@@ -663,10 +746,11 @@ footer {
 }
 
 .bot-message .message-content {
-    background: var(--white);
+    background: var(--bg-primary);
     color: var(--text-dark);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .user-message {
@@ -692,11 +776,12 @@ footer {
     flex-wrap: wrap;
     gap: 0.5rem;
     padding: 0.75rem 1rem;
-    background: var(--white);
+    background: var(--bg-primary);
     border-top: 1px solid var(--border-color);
     overflow-x: auto;
     flex-shrink: 0;
     max-height: 100px;
+    transition: background-color 0.3s ease;
 }
 
 .quick-action-btn {
@@ -721,9 +806,10 @@ footer {
 .chatbot-input-area {
     display: flex;
     padding: 1rem;
-    background: var(--white);
+    background: var(--bg-primary);
     border-top: 1px solid var(--border-color);
     flex-shrink: 0;
+    transition: background-color 0.3s ease;
 }
 
 .chatbot-input {
@@ -733,7 +819,13 @@ footer {
     border-radius: 8px;
     font-size: 0.9rem;
     margin-right: 0.5rem;
-    transition: border-color 0.3s;
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+    background-color: var(--bg-primary);
+    color: var(--text-dark);
+}
+
+.chatbot-input::placeholder {
+    color: var(--text-light);
 }
 
 .chatbot-input:focus {

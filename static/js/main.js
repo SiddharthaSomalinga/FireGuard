@@ -1,4 +1,55 @@
+// Dark Mode Functions
+function initDarkMode() {
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    
+    // Check for saved theme preference or system preference
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // Set initial theme
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        html.classList.add('dark-mode');
+        updateThemeIcon(true);
+    } else {
+        html.classList.remove('dark-mode');
+        updateThemeIcon(false);
+    }
+    
+    // Handle toggle button click
+    themeToggle.addEventListener('click', function() {
+        html.classList.toggle('dark-mode');
+        const isDarkMode = html.classList.contains('dark-mode');
+        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+        updateThemeIcon(isDarkMode);
+    });
+    
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            const html = document.documentElement;
+            if (e.matches) {
+                html.classList.add('dark-mode');
+                updateThemeIcon(true);
+            } else {
+                html.classList.remove('dark-mode');
+                updateThemeIcon(false);
+            }
+        }
+    });
+}
+
+function updateThemeIcon(isDarkMode) {
+    const themeIcon = document.querySelector('.theme-icon');
+    if (themeIcon) {
+        themeIcon.textContent = isDarkMode ? '☀️' : '🌙';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize dark mode
+    initDarkMode();
+
     const form = document.getElementById('locationForm');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const resultsSection = document.getElementById('results');
