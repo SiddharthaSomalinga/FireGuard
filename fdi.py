@@ -664,9 +664,13 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
     Complete fire risk analysis with REAL-TIME DATA for all parameters.
     No hardcoded values - everything is fetched from APIs!
     """
+    # Record analysis timestamp
+    analysis_timestamp = datetime.now(timezone.utc)
+    
     print(f"\n{'='*60}")
     print(f"DYNAMIC FIRE RISK ANALYSIS FOR {area_name.upper()}")
     print(f"Location: {latitude}, {longitude}")
+    print(f"Analysis Time: {analysis_timestamp.isoformat()}")
     print(f"{'='*60}\n")
 
     # Step 1: Get historical rain data
@@ -674,6 +678,7 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
     last_rain_date, rainfall_amount, days_since_rain = get_days_since_last_rain(
         latitude, longitude
     )
+    rain_data_timestamp = datetime.now(timezone.utc)
     print(f"   Last Rain: {last_rain_date}")
     print(f"   Rainfall Amount: {rainfall_amount:.2f} mm")
     print(f"   Days Since Rain: {days_since_rain}")
@@ -681,6 +686,7 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
     # Step 2: Get current weather
     print("\n🌤️  Fetching current weather...")
     weather = get_current_weather(latitude, longitude)
+    weather_data_timestamp = datetime.now(timezone.utc)
     print(f"   Temperature: {weather['temperature']:.1f}°C")
     print(f"   Humidity: {weather['humidity']:.1f}%")
     print(f"   Wind Speed: {weather['wind_speed']:.1f} km/h")
@@ -764,12 +770,16 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
 
     return {
         "location": {"latitude": latitude, "longitude": longitude},
+        "analysis_timestamp": analysis_timestamp.isoformat(),
         "weather_data": weather,
+        "weather_data_timestamp": weather_data_timestamp.isoformat(),
         "rain_data": {
             "last_rain_date": str(last_rain_date),
             "rainfall_amount": rainfall_amount,
-            "days_since_rain": days_since_rain
+            "days_since_rain": days_since_rain,
+            "lookback_days": 90
         },
+        "rain_data_timestamp": rain_data_timestamp.isoformat(),
         "environmental": {
             "elevation": elevation_data['elevation'],
             "slope": elevation_data['slope_degrees'],

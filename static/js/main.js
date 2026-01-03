@@ -192,6 +192,25 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function displayResults(data) {
+        // Display freshness indicators
+        const analysisTimestamp = data.analysis_timestamp;
+        const weatherTimestamp = data.weather_data_timestamp;
+        const rainTimestamp = data.rain_data_timestamp;
+        
+        const now = new Date();
+        
+        if (analysisTimestamp || weatherTimestamp) {
+            const weatherTime = weatherTimestamp ? new Date(weatherTimestamp) : new Date(analysisTimestamp);
+            const weatherMinutesAgo = Math.round((now - weatherTime) / (1000 * 60));
+            const weatherFreshnessText = formatTimeAgo(weatherMinutesAgo);
+            document.getElementById('weatherFreshness').textContent = `Weather updated ${weatherFreshnessText}`;
+        }
+        
+        if (rainTimestamp) {
+            const lookbackDays = data.rain_data?.lookback_days || 90;
+            document.getElementById('rainFreshness').textContent = `Rain history: last ${lookbackDays} days`;
+        }
+        
         // Display risk level
         const riskLevel = data.prolog_classification?.RiskLevel || 'Unknown';
         document.getElementById('riskLevel').textContent = riskLevel;
@@ -351,6 +370,17 @@ document.addEventListener('DOMContentLoaded', function() {
         errorDiv.textContent = message;
         errorDiv.style.display = 'block';
         errorDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function formatTimeAgo(minutes) {
+        if (minutes < 1) {
+            return 'just now';
+        } else if (minutes < 60) {
+            return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+        } else {
+            const hours = Math.floor(minutes / 60);
+            return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        }
     }
 
     function getRiskClass(riskLevel) {

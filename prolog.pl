@@ -115,9 +115,9 @@ area_details(area_2, moist, low, high, low, flat, low, no).
 area_details(area_3, dry, moderate, moderate, moderate, hilly, medium, slightly_critical).
 area_details(area_4, dry, high, low, strong, steep, high, critical).
 area_details(area_5, dry, high, low, strong, steep, high, slightly_critical).
-area_details(frisco_tx, moderate, low, low, moderate, flat, high, no_critical).
-area_details(los_angeles_ca, moist, moderate, low, low, flat, high, no_critical).
-area_details(san_francisco_ca, moist, low, high, low, flat, high, no_critical).
+area_details(frisco_tx, moderate, low, moderate, moderate, flat, high, no_critical).
+area_details(los_angeles_ca, moist, low, high, low, flat, high, no_critical).
+area_details(san_francisco_ca, moist, low, high, moderate, flat, high, no_critical).
 area_details(user_location, moderate, moderate, low, low, flat, low, no_critical).
 area_details(frisco_test, moist, high, low, moderate, flat, high, no_critical).
 
@@ -284,3 +284,4 @@ area_details(socal, dry, low, very_low, low, flat, low, no_critical).
 area_details(texas, moist, moderate, very_low, moderate, flat, high, no_critical).
 area_details(pacific_nw, moist, low, high, moderate, flat, high, no_critical).
 area_details(arizona, moist, moderate, moderate, low, flat, high, no_critical).
+area_details(colorado, moist, low, low, low, flat, high, no_critical).
