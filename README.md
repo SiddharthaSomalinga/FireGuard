@@ -2,7 +2,7 @@
 
 **Real-time wildfire risk assessment system combining environmental data, fire behavior modeling, and Prolog-based reasoning.**
 
-🌐 **Live Demo**: [https://prolog-api.onrender.com](https://prolog-api.onrender.com)
+🌐 **Live Demo**: [https://fireguard-xo33.onrender.com/](https://fireguard-xo33.onrender.com/)
 
 ## Inspiration
 
