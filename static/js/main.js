@@ -50,6 +50,182 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize dark mode
     initDarkMode();
 
+    // Per-card unit helpers (persist per card so toggles affect only that card)
+    function getCardUnit(cardName) {
+        return localStorage.getItem(`unit_${cardName}`) || 'metric';
+    }
+
+    function setCardUnit(cardName, system) {
+        localStorage.setItem(`unit_${cardName}`, system);
+        updateUnitButton(cardName);
+        updateUnitsForCard(cardName);
+    }
+
+    function updateUnitButton(cardName) {
+        const idMap = {
+            weather: 'weatherUnitToggle',
+            rain: 'rainUnitToggle',
+            topo: 'topoUnitToggle'
+        };
+        const btn = document.getElementById(idMap[cardName]);
+        if (!btn) return;
+        const unit = getCardUnit(cardName);
+        // Keep visible text constant to avoid layout shifts; show current units in tooltip/aria-label
+        const labelMap = {
+            weather: unit === 'metric' ? '°C · km/h · mm' : '°F · mph · in',
+            rain: unit === 'metric' ? 'mm · in' : 'in · mm',
+            topo: unit === 'metric' ? 'm · ft' : 'ft · m'
+        };
+        btn.textContent = 'Convert units';
+        btn.title = labelMap[cardName];
+        btn.setAttribute('aria-label', `Toggle units: ${labelMap[cardName]}`);
+    }
+
+    function cToF(c) { return (c * 9/5) + 32; }
+    function kmhToMph(k) { return k * 0.621371; }
+
+    function formatNumber(v, digits) {
+        if (v === null || v === undefined || v === '') return 'N/A';
+        const n = Number(v);
+        if (Number.isNaN(n)) return 'N/A';
+        return n.toFixed(digits);
+    }
+
+    function formatTempForUnit(celsius, cardName) {
+        const sys = getCardUnit(cardName || 'weather');
+        if (celsius === null || celsius === undefined || celsius === '') return 'N/A';
+        const c = Number(celsius);
+        if (sys === 'metric') return `${formatNumber(c,1)}°C`;
+        return `${formatNumber(cToF(c),1)}°F`;
+    }
+
+    function formatSpeedForUnit(kmh, cardName) {
+        const sys = getCardUnit(cardName || 'weather');
+        if (kmh === null || kmh === undefined || kmh === '') return 'N/A';
+        const k = Number(kmh);
+        if (sys === 'metric') return `${formatNumber(k,1)} km/h`;
+        return `${formatNumber(kmhToMph(k),1)} mph`;
+    }
+
+    function updateWeatherUnits(root) {
+        root = root || document;
+        // Update weather detail elements that have data attributes inside the provided root
+        const tempEls = root.querySelectorAll('[data-temp-c]');
+        tempEls.forEach(el => {
+            const raw = el.getAttribute('data-temp-c');
+            el.textContent = formatTempForUnit(raw, 'weather');
+        });
+
+        const windEls = root.querySelectorAll('[data-wind-kmh]');
+        windEls.forEach(el => {
+            const raw = el.getAttribute('data-wind-kmh');
+            el.textContent = formatSpeedForUnit(raw, 'weather');
+        });
+        // Also convert precipitation inside this weather card if present
+        const precipEls = root.querySelectorAll('[data-precip-mm]');
+        precipEls.forEach(el => {
+            const raw = el.getAttribute('data-precip-mm');
+            el.textContent = formatPrecipForUnit(raw, 'weather');
+        });
+    }
+
+    // Rain unit conversions (mm <-> inches)
+    // Rain helpers (per-card)
+    function getRainUnit() { return getCardUnit('rain'); }
+    function setRainUnit(u) { setCardUnit('rain', u); }
+
+    function mmToIn(mm) { return mm / 25.4; }
+    function formatPrecipForUnit(mm, cardName) {
+        if (mm === null || mm === undefined || mm === '') return 'N/A';
+        const n = Number(mm);
+        if (Number.isNaN(n)) return 'N/A';
+        const unitSource = cardName ? getCardUnit(cardName) : getRainUnit();
+        if (unitSource === 'metric') return `${n.toFixed(2)} mm`;
+        return `${mmToIn(n).toFixed(2)} in`;
+    }
+
+    function updateRainUnits(root) {
+        root = root || document;
+        const precipEls = root.querySelectorAll('[data-precip-mm]');
+        precipEls.forEach(el => {
+            const raw = el.getAttribute('data-precip-mm');
+            el.textContent = formatPrecipForUnit(raw);
+        });
+    }
+
+    // Topography unit conversions (m <-> ft)
+    // Topography helpers (per-card)
+    function getTopoUnit() { return getCardUnit('topo'); }
+    function setTopoUnit(u) { setCardUnit('topo', u); }
+
+    function mToFt(m) { return m * 3.28084; }
+    function formatElevationForUnit(m) {
+        if (m === null || m === undefined || m === '') return 'N/A';
+        const n = Number(m);
+        if (Number.isNaN(n)) return 'N/A';
+        if (getTopoUnit() === 'metric') return `${n.toFixed(1)} m`;
+        return `${mToFt(n).toFixed(1)} ft`;
+    }
+
+    function updateTopoUnits(root) {
+        root = root || document;
+        const elevEls = root.querySelectorAll('[data-elevation-m]');
+        elevEls.forEach(el => {
+            const raw = el.getAttribute('data-elevation-m');
+            el.textContent = formatElevationForUnit(raw);
+        });
+    }
+
+    function updateAllUnits() {
+        updateUnitsForCard('weather');
+        updateUnitsForCard('rain');
+        updateUnitsForCard('topo');
+    }
+
+    function updateUnitsForCard(cardName) {
+        if (cardName === 'weather') {
+            const root = document.getElementById('weatherDetails');
+            if (root) updateWeatherUnits(root);
+        } else if (cardName === 'rain') {
+            const root = document.getElementById('rainDetails');
+            if (root) updateRainUnits(root);
+        } else if (cardName === 'topo') {
+            const root = document.getElementById('topographyDetails');
+            if (root) updateTopoUnits(root);
+        }
+    }
+
+    // Attach click handler for the weather unit toggle button
+    const weatherUnitBtn = document.getElementById('weatherUnitToggle');
+    if (weatherUnitBtn) {
+        weatherUnitBtn.addEventListener('click', function() {
+            const current = getCardUnit('weather');
+            setCardUnit('weather', current === 'metric' ? 'imperial' : 'metric');
+        });
+    }
+
+    // Ensure button reflects stored preference on startup
+    updateUnitButton('weather');
+
+    // Attach handlers for rain and topo unit toggles
+    const rainUnitBtn = document.getElementById('rainUnitToggle');
+    if (rainUnitBtn) {
+        rainUnitBtn.addEventListener('click', function() {
+            const current = getRainUnit();
+            setRainUnit(current === 'metric' ? 'imperial' : 'metric');
+        });
+    }
+    updateUnitButton('rain');
+
+    const topoUnitBtn = document.getElementById('topoUnitToggle');
+    if (topoUnitBtn) {
+        topoUnitBtn.addEventListener('click', function() {
+            const current = getTopoUnit();
+            setTopoUnit(current === 'metric' ? 'imperial' : 'metric');
+        });
+    }
+    updateUnitButton('topo');
+
     const form = document.getElementById('locationForm');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const resultsSection = document.getElementById('results');
@@ -229,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('weatherDetails').innerHTML = `
             <div class="detail-item">
                 <span class="detail-item-label">Temperature</span>
-                <span class="detail-item-value">${weather.temperature?.toFixed(1) || 'N/A'}°C</span>
+                <span class="detail-item-value" data-temp-c="${weather.temperature ?? ''}">${weather.temperature !== undefined ? '...' : 'N/A'}</span>
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Humidity</span>
@@ -237,13 +413,16 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Wind Speed</span>
-                <span class="detail-item-value">${weather.wind_speed?.toFixed(1) || 'N/A'} km/h</span>
+                <span class="detail-item-value" data-wind-kmh="${weather.wind_speed ?? ''}">${weather.wind_speed !== undefined ? '...' : 'N/A'}</span>
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Precipitation</span>
-                <span class="detail-item-value">${weather.current_precipitation?.toFixed(2) || 'N/A'} mm</span>
+                <span class="detail-item-value" data-precip-mm="${weather.current_precipitation ?? ''}">${weather.current_precipitation !== undefined ? (weather.current_precipitation.toFixed(2) + ' mm') : 'N/A'}</span>
             </div>
         `;
+
+        // After injecting raw data attributes, apply unit preferences to this card only
+        updateUnitsForCard('weather');
 
         // Display rain details
         const rain = data.rain_data || {};
@@ -254,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Rainfall Amount</span>
-                <span class="detail-item-value">${rain.rainfall_amount?.toFixed(2) || 'N/A'} mm</span>
+                <span class="detail-item-value" data-precip-mm="${rain.rainfall_amount ?? ''}">${rain.rainfall_amount !== undefined ? '...' : 'N/A'}</span>
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Days Since Rain</span>
@@ -262,18 +441,24 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
+        // Apply rain unit formatting for this card only
+        updateUnitsForCard('rain');
+
         // Display topography details
         const env = data.environmental || {};
         document.getElementById('topographyDetails').innerHTML = `
             <div class="detail-item">
                 <span class="detail-item-label">Elevation</span>
-                <span class="detail-item-value">${env.elevation?.toFixed(1) || 'N/A'} m</span>
+                <span class="detail-item-value" data-elevation-m="${env.elevation ?? ''}">${env.elevation !== undefined ? '...' : 'N/A'}</span>
             </div>
             <div class="detail-item">
                 <span class="detail-item-label">Slope</span>
                 <span class="detail-item-value">${env.slope?.toFixed(2) || 'N/A'}°</span>
             </div>
         `;
+
+        // Apply topo unit formatting for this card only
+        updateUnitsForCard('topo');
 
         // Display population details
         document.getElementById('populationDetails').innerHTML = `

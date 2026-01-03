@@ -281,7 +281,8 @@ handle_input(exit) :-
     write('Goodbye!'), nl.area_details(My Location (33.1960, -96.7633), moderate, low, low, moderate, flat, high, no_critical).
 area_details(Southern California (LA/Ventura), moist, low, high, strong, hilly, low, no_critical).
 area_details(socal, dry, low, very_low, low, flat, low, no_critical).
-area_details(texas, moist, moderate, very_low, moderate, flat, high, no_critical).
+area_details(texas, moderate, moderate, very_low, moderate, flat, high, no_critical).
 area_details(pacific_nw, moist, low, high, moderate, flat, high, no_critical).
 area_details(arizona, moist, moderate, moderate, low, flat, high, no_critical).
 area_details(colorado, moist, low, low, low, flat, high, no_critical).
+area_details(norcal, moist, low, high, moderate, flat, high, no_critical).
