@@ -505,6 +505,81 @@ def call_prolog_query(query: str, prolog_file: str = "prolog.pl", additional_fac
         raise RuntimeError(f"Prolog execution failed: {str(e)}")
 
 
+def generate_risk_explanation(fuel: str, temp_class: str, hum_class: str, wind_class: str, 
+                             topo_class: str, pop_class: str, infra_class: str, 
+                             fdi_value: int, risk_level: str) -> str:
+    """
+    Generate a human-readable explanation of why the risk is at the current level.
+    Returns a detailed explanation highlighting contributing factors.
+    """
+    explanations = []
+    critical_factors = []
+    
+    # Analyze fuel moisture
+    if fuel in ["dry", "extremely_dry"]:
+        critical_factors.append(f"🔥 Fuel moisture: {fuel.replace('_', ' ').title()}")
+        explanations.append(f"Vegetation is highly flammable due to {fuel} fuel moisture")
+    elif fuel == "moderate":
+        explanations.append(f"Fuel moisture is moderate")
+    else:
+        explanations.append(f"Fuel moisture is {fuel} - vegetation is less flammable")
+    
+    # Analyze temperature
+    if temp_class in ["high", "very_high"]:
+        critical_factors.append(f"🌡️ Temperature: {temp_class.replace('_', ' ').title()}")
+        explanations.append(f"{temp_class.title()} temperatures accelerate fuel drying and fire spread")
+    else:
+        explanations.append(f"Temperature is {temp_class}")
+    
+    # Analyze humidity
+    if hum_class in ["low", "very_low"]:
+        critical_factors.append(f"💧 Humidity: {hum_class.replace('_', ' ').title()}")
+        explanations.append(f"{hum_class.title()} humidity significantly increases fire risk")
+    else:
+        explanations.append(f"Humidity is {hum_class}")
+    
+    # Analyze wind
+    if wind_class in ["strong", "extreme"]:
+        critical_factors.append(f"💨 Wind: {wind_class.title()}")
+        explanations.append(f"{wind_class.title()} winds dramatically increase fire spread rate")
+    else:
+        explanations.append(f"Wind speed is {wind_class}")
+    
+    # Analyze topography
+    if topo_class in ["steep", "very_steep"]:
+        critical_factors.append(f"⛰️ Terrain: {topo_class.replace('_', ' ').title()}")
+        explanations.append(f"Fires spread faster uphill on {topo_class} slopes")
+    else:
+        explanations.append(f"Terrain is {topo_class}")
+    
+    # Analyze population
+    if pop_class == "high":
+        explanations.append(f"High population density increases evacuation complexity")
+    
+    # Analyze infrastructure
+    if infra_class in ["critical", "slightly_critical"]:
+        explanations.append(f"Critical infrastructure at risk requires additional resources")
+    
+    # Build final explanation with dynamic emoji color
+    risk_emoji = "🔴" if risk_level in ["Extreme", "Very High"] else "🟠" if risk_level == "High" else "🟡" if risk_level == "Medium" else "🟢" if risk_level == "Low" else "🔵"
+    result = f"{risk_emoji} **{risk_level}**\n\n"
+    
+    if critical_factors:
+        result += "**Critical Factors:**\n"
+        for factor in critical_factors:
+            result += f"{factor}\n"
+        result += "\n"
+    
+    result += "**Analysis:**\n"
+    for exp in explanations:
+        if exp:  # Skip empty explanations
+            result += f"• {exp}\n"
+    
+    result += f"\n📊 **FDI: {fdi_value}**"
+    
+    return result
+
+
 def classify_area_with_prolog(area: str, prolog_file: str = "prolog.pl", additional_fact: str = None) -> dict:
     """Get fire risk classification for a specific area from Prolog."""
     # In serverless environments, call remote Prolog API service
@@ -680,6 +755,13 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
 
     print(f"\n{'='*60}\n")
 
+    # Generate risk explanation
+    risk_level = prolog_result.get('RiskLevel', 'Unknown')
+    risk_explanation = generate_risk_explanation(
+        fuel, temp_class, hum_class, wind_class, topo_class, pop_density, 
+        infrastructure, fdi_value, risk_level
+    )
+
     return {
         "location": {"latitude": latitude, "longitude": longitude},
         "weather_data": weather,
@@ -705,7 +787,8 @@ def analyze_location_dynamic(latitude: float, longitude: float, area_name: str =
             "value": fdi_value,
             "category": fdi_category
         },
-        "prolog_classification": prolog_result
+        "prolog_classification": prolog_result,
+        "risk_explanation": risk_explanation
     }
 
 

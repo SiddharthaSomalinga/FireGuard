@@ -306,9 +306,45 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
+        // Display risk explanation
+        const explanation = data.risk_explanation || '';
+        if (explanation) {
+            document.getElementById('riskExplanation').innerHTML = convertMarkdownToHTML(explanation);
+        }
+
         // Show results
         resultsSection.style.display = 'block';
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function convertMarkdownToHTML(markdown) {
+        let html = markdown;
+        
+        // Split by double asterisks for bold sections first
+        let parts = html.split(/\*\*([^*]+)\*\*/g);
+        html = '';
+        
+        for (let i = 0; i < parts.length; i++) {
+            if (i % 2 === 0) {
+                // Regular text
+                html += parts[i];
+            } else {
+                // Bold text
+                html += '<strong>' + parts[i] + '</strong>';
+            }
+        }
+        
+        // Convert bullet points with emoji preservation
+        html = html.replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.+<\/li>)/s, '<ul>$1</ul>');
+        
+        // Convert line breaks
+        html = html.replace(/\n/g, '<br>');
+        
+        // Clean up multiple br tags
+        html = html.replace(/<br>\s*<br>/g, '<br>');
+        
+        return html;
     }
 
     function showError(message) {

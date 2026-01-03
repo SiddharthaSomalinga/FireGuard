@@ -394,6 +394,7 @@ FireGuard/
 - ✅ **Interactive Chatbot**: Calculate fireline intensity, flame length, safety zones, burn area, escape time, and risk levels
 - ✅ **Fire Behavior Modeling**: Rothermel equation for spread rate, Byram equation for intensity
 - ✅ **Risk Scoring System**: Multi-factor analysis including fuel moisture, temperature, humidity, wind, topography, population, and infrastructure
+- ✅ **Risk Explanation**: Detailed "Why This Risk?" breakdown showing critical factors and contributing analysis
 - ✅ **Fire Danger Index (FDI)**: Dynamic FDI calculation with categorical mapping (Blue→Green→Yellow→Orange→Red)
 - ✅ **Environmental Data Integration**: 
   - Weather data from Open-Meteo

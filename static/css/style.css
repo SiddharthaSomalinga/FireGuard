@@ -399,6 +399,74 @@ header h1 {
     }
 }
 
+/* Risk Explanation Card */
+.risk-explanation-card {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 2rem 0 0 0;
+    box-shadow: var(--shadow);
+    border-left: 5px solid var(--primary-red);
+    border: 1px solid var(--border-color);
+    border-left: 5px solid var(--primary-red);
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, var(--bg-primary) 0%, rgba(220, 38, 38, 0.03) 100%);
+}
+
+.risk-explanation-card h3 {
+    color: var(--primary-red);
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.explanation-content {
+    color: var(--text-dark);
+    line-height: 1.9;
+    font-size: 0.95rem;
+}
+
+.explanation-content strong {
+    color: var(--primary-red);
+    font-weight: 600;
+    display: block;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.explanation-content strong:first-child {
+    margin-top: 0;
+}
+
+.explanation-content ul {
+    margin: 0.8rem 0;
+    padding: 0;
+    list-style: none;
+}
+
+.explanation-content li {
+    margin: 0.6rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.explanation-content li:before {
+    content: "▪";
+    position: absolute;
+    left: 0;
+    color: var(--primary-red);
+    font-weight: bold;
+}
+
+.explanation-content br {
+    display: block;
+    content: "";
+    margin: 0.5rem 0;
+}
+
 .risk-level {
     font-size: 2.5rem;
     font-weight: 700;
