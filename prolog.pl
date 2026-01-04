@@ -1,6 +1,9 @@
 :- discontiguous handle_input/1.
 :- discontiguous area_details/8.
 :- dynamic area_details/8.
+:- dynamic risk_cache/9.
+:- dynamic risk_order/1.
+:- initialization(precompute_risk_order).
 :- style_check(-singleton).
 
 % ============================================
@@ -118,7 +121,7 @@ area_details(area_5, dry, high, low, strong, steep, high, slightly_critical).
 area_details(frisco_tx, moderate, low, moderate, moderate, flat, high, no_critical).
 area_details(los_angeles_ca, moist, low, high, low, flat, high, no_critical).
 area_details(san_francisco_ca, moist, low, high, moderate, flat, high, no_critical).
-area_details(user_location, moderate, moderate, low, low, flat, low, no_critical).
+area_details(user_location, moist, low, high, low, flat, low, no_critical).
 area_details(frisco_test, moist, high, low, moderate, flat, high, no_critical).
 
 % ============================================
@@ -127,7 +130,7 @@ area_details(frisco_test, moist, high, low, moderate, flat, high, no_critical).
 
 classify_fire_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
     area_details(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra),
-    calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel).
+    risk_for_area(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel).
 
 calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
     fuel_score(Fuel, FuelScore),
@@ -139,6 +142,13 @@ calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
     infra_score(Infra, InfraScore),
     TotalScore is FuelScore + TempScore + HumScore + WindScore + TopoScore + PopScore + InfraScore,
     classify_by_score(TotalScore, RiskLevel).
+
+% Cache risk calculation to avoid recomputation for the same area parameters
+risk_for_area(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
+    risk_cache(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel), !.
+risk_for_area(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
+    calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel),
+    assertz(risk_cache(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel)).
 
 % ============================================
 % EVACUATION & RESOURCE RECOMMENDATIONS
@@ -306,13 +316,27 @@ risk_level_value('Very Low', 1).
 risk_level_value('Unknown', 0).
 
 order_risks_by_level(OrderedResults) :-
+    risk_order(OrderedResults), !.
+order_risks_by_level(OrderedResults) :-
     findall([RiskValue, Area, RiskLevel, Fuel, Temp, Hum, Wind, Topo, Pop, Infra],
-    (
-        classify_fire_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel),
-        risk_level_value(RiskLevel, RiskValue)
-    ),
-    Results),
-    sort(1, @>=, Results, OrderedResults).
+        (
+            classify_fire_risk(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel),
+            risk_level_value(RiskLevel, RiskValue)
+        ),
+        Results),
+    sort(1, @>=, Results, OrderedResults),
+    retractall(risk_order(_)),
+    assertz(risk_order(OrderedResults)).
+
+% Precompute cache and ordered list for faster startup queries
+precompute_risk_order :-
+    retractall(risk_cache(_, _, _, _, _, _, _, _, _)),
+    retractall(risk_order(_)),
+    findall(_, (
+        area_details(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra),
+        risk_for_area(Area, Fuel, Temp, Hum, Wind, Topo, Pop, Infra, _)
+    ), _),
+    order_risks_by_level(_).
 
 print_areas :-
     findall([Area, RiskLevel, Fuel, Temp, Hum, Wind, Topo, Pop, Infra],
@@ -416,9 +440,12 @@ handle_input(risk_level) :-
     write('Fire Risk Level: '), write(RiskLevel), nl.
 
 handle_input(exit) :-
-    write('Goodbye!'), nl.area_details(My Location (33.1960, -96.7633), moderate, low, low, moderate, flat, high, no_critical).
-area_details(Southern California (LA/Ventura), moist, low, high, strong, hilly, low, no_critical).
-area_details(socal, dry, low, very_low, low, flat, low, no_critical).
+    write('Goodbye!'), nl.
+
+% Additional predefined areas (atoms only to avoid parsing overhead)
+area_details(my_location_33_1960_-96_7633, moderate, low, low, moderate, flat, high, no_critical).
+area_details(southern_california_la_ventura, moist, low, high, strong, hilly, low, no_critical).
+area_details(socal, moderate, moderate, low, moderate, flat, high, no_critical).
 area_details(texas, moderate, moderate, very_low, moderate, flat, high, no_critical).
 area_details(pacific_nw, moist, low, high, moderate, flat, high, no_critical).
 area_details(arizona, moist, moderate, moderate, low, flat, high, no_critical).
