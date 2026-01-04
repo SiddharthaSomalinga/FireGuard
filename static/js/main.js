@@ -516,6 +516,13 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('riskExplanation').innerHTML = convertMarkdownToHTML(explanation);
         }
 
+        // Fetch and display NASA FIRMS active fires
+        /* fetchAndDisplayFIRMSData(
+            latitudeInput.value,
+            longitudeInput.value,
+            riskLevel
+        ); */
+
         // Show results
         resultsSection.style.display = 'block';
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -837,4 +844,298 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+
+    // ============= NASA FIRMS Active Fire Functions =============
+
+    async function fetchAndDisplayFIRMSData(latitude, longitude, riskLevel) {
+        const firmsCard = document.getElementById('firmsCard');
+        const firmsContent = document.getElementById('firmsContent');
+        
+        try {
+            // Show loading state
+            firmsCard.style.display = 'block';
+            firmsContent.innerHTML = '<div class="firms-loading">Loading satellite fire data...</div>';
+            
+            const response = await fetch('/api/firms/active-fires', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    latitude: parseFloat(latitude),
+                    longitude: parseFloat(longitude),
+                    current_risk_level: riskLevel
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch FIRMS data');
+            }
+            
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                displayFIRMSResults(result.data);
+            } else {
+                firmsContent.innerHTML = '<div class="firms-no-data">Unable to load satellite fire data</div>';
+            }
+        } catch (error) {
+            console.warn('FIRMS data fetch error:', error);
+            firmsContent.innerHTML = '<div class="firms-no-data">Satellite fire data unavailable</div>';
+        }
+    }
+
+    function displayFIRMSResults(data) {
+        const firmsContent = document.getElementById('firmsContent');
+        const firmsMapContainer = document.getElementById('firmsMapContainer');
+        const threatAnalysis = data.threat_analysis || {};
+        const fires = data.fires || [];
+        
+        let html = '';
+        
+        if (!threatAnalysis.has_nearby_fires) {
+            html = `
+                <div class="firms-status good">
+                    <div class="firms-status-icon">✅</div>
+                    <div class="firms-status-text">
+                        <div class="firms-status-title">No Active Fires Detected</div>
+                        <div class="firms-status-desc">No satellite-detected fires within 100km radius</div>
+                    </div>
+                </div>
+            `;
+            firmsMapContainer.style.display = 'none';
+        } else {
+            const threatLevel = threatAnalysis.fire_threat_level || 'none';
+            const threatColor = getThreatColor(threatLevel);
+            const threatEmoji = getThreatEmoji(threatLevel);
+            const closestFire = fires[0];
+            
+            html = `
+                <div class="firms-status ${threatColor}">
+                    <div class="firms-status-icon">${threatEmoji}</div>
+                    <div class="firms-status-text">
+                        <div class="firms-status-title">Threat Level: ${threatLevel.toUpperCase()}</div>
+                        <div class="firms-status-desc">
+                            ${threatAnalysis.nearby_fire_count} fire(s) detected, 
+                            closest is ${closestFire.distance_km}km away (${closestFire.confidence_level} confidence)
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add evacuation warning if needed
+            if (threatAnalysis.evacuation_recommended) {
+                html += `
+                    <div class="firms-evacuation-warning">
+                        <div class="warning-icon">🚨</div>
+                        <div class="warning-text">
+                            <div class="warning-title">Evacuation Alert</div>
+                            <div class="warning-message">${threatAnalysis.evacuation_reason}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add risk elevation info
+            if (threatAnalysis.recommended_risk_elevation) {
+                html += `
+                    <div class="firms-risk-elevation">
+                        <div class="elevation-label">Risk Auto-Elevated:</div>
+                        <div class="elevation-badges">
+                            <span class="badge badge-neutral">Original: ${data.current_risk_level || 'Unknown'}</span>
+                            <span class="badge badge-${threatAnalysis.recommended_risk_elevation.toLowerCase()}">Adjusted: ${threatAnalysis.recommended_risk_elevation}</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add fires list
+            html += '<div class="firms-fires-list">';
+            html += '<div class="firms-list-title">🛰️ Detected Fire Hotspots:</div>';
+            
+            fires.forEach((fire, index) => {
+                const confidenceColor = getConfidenceColor(fire.confidence_level);
+                html += `
+                    <div class="firms-fire-item">
+                        <div class="fire-marker" style="background-color: ${confidenceColor}"></div>
+                        <div class="fire-details">
+                            <div class="fire-header">
+                                <span class="fire-distance">${fire.distance_km} km away</span>
+                                <span class="fire-confidence badge badge-${fire.confidence_level}">
+                                    ${fire.confidence_level} confidence
+                                </span>
+                            </div>
+                            <div class="fire-meta">
+                                <span class="fire-power">Power: ${fire.frp.toFixed(0)} MW</span>
+                                <span class="fire-date">${fire.acq_date} ${fire.acq_time}</span>
+                                <span class="fire-satellite">${fire.satellite}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            // Show map
+            firmsMapContainer.style.display = 'block';
+            // Initialize map after HTML is rendered with location-specific view
+            setTimeout(() => {
+                initializeFIRMSMap(data.location.lat, data.location.lon, fires, false);
+            }, 100);
+        }
+        
+        // Add data freshness note
+        html += `
+            <div class="firms-freshness">
+                <span class="freshness-icon">⏰</span>
+                <span class="freshness-text">Data updated: ${new Date(data.timestamp).toLocaleTimeString()}</span>
+            </div>
+        `;
+        
+        firmsContent.innerHTML = html;
+    }
+
+    let firmsMapInstance = null;
+
+    function initializeFIRMSMap(userLat, userLon, fires, isGlobalView = false) {
+        const mapElement = document.getElementById('firmsMap');
+        
+        // Destroy existing map if it exists
+        if (firmsMapInstance) {
+            firmsMapInstance.remove();
+        }
+        
+        // If global view, center on continental US; otherwise on user location
+        let centerLat = isGlobalView ? 39.5 : userLat;
+        let centerLon = isGlobalView ? -98.35 : userLon;
+        let zoomLevel = isGlobalView ? 4 : 9;
+        
+        // Create new map
+        firmsMapInstance = L.map('firmsMap').setView([centerLat, centerLon], zoomLevel);
+        
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(firmsMapInstance);
+        
+        // Add fire markers (no user location marker anymore)
+        fires.forEach(fire => {
+            const color = getConfidenceColor(fire.confidence_level);
+            
+            const fireIcon = L.divIcon({
+                className: 'fire-marker-icon',
+                html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.3); box-shadow: 0 0 8px ${color}; animation: pulse 2s infinite;"></div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+            
+            const popup = `
+                <div class="fire-popup">
+                    <div class="fire-popup-title">🔥 Fire Detection</div>
+                    ${fire.distance_km ? `
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Distance:</span>
+                        <span class="fire-popup-value">${fire.distance_km} km</span>
+                    </div>
+                    ` : ''}
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Confidence:</span>
+                        <span class="fire-popup-value">${fire.confidence_level}</span>
+                    </div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Power:</span>
+                        <span class="fire-popup-value">${fire.frp.toFixed(0)} MW</span>
+                    </div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Date/Time:</span>
+                        <span class="fire-popup-value">${fire.acq_date} ${fire.acq_time}</span>
+                    </div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Satellite:</span>
+                        <span class="fire-popup-value">${fire.satellite}</span>
+                    </div>
+                </div>
+            `;
+            
+            L.marker([fire.lat, fire.lon], { icon: fireIcon })
+                .bindPopup(popup)
+                .addTo(firmsMapInstance);
+        });
+        
+        // Fit bounds to show all fires if not global view
+        if (!isGlobalView && fires.length > 0) {
+            const bounds = L.latLngBounds([[userLat, userLon]]);
+            fires.forEach(fire => {
+                bounds.extend([fire.lat, fire.lon]);
+            });
+            firmsMapInstance.fitBounds(bounds, { padding: [50, 50] });
+        }
+    }
+
+    // Fetch recent global FIRMS fires and initialize map on page load
+    async function fetchRecentFires() {
+        const firmsContent = document.getElementById('firmsContent');
+        const firmsMapContainer = document.getElementById('firmsMapContainer');
+        try {
+            firmsMapContainer.style.display = 'block';
+            firmsContent.innerHTML = '<div class="firms-loading">Loading recent US/Canada wildfire data...</div>';
+
+            const resp = await fetch('/api/firms/recent?days=7&max=2000');
+            if (!resp.ok) throw new Error('Failed to fetch recent fires');
+            const json = await resp.json();
+            if (json.success && json.data) {
+                const fires = json.data.fires || [];
+                // Render a short summary in the content area
+                firmsContent.innerHTML = `<div class="firms-list-title">🛰️ Active Hotspots (USA/Canada, last 7 days): ${fires.length}</div>`;
+                // Initialize map for global USA/Canada view
+                initializeFIRMSMap(39.5, -98.35, fires, true);
+            } else {
+                firmsContent.innerHTML = '<div class="firms-no-data">No recent FIRMS data available</div>';
+            }
+        } catch (err) {
+            console.warn('Error fetching recent FIRMS fires:', err);
+            firmsContent.innerHTML = '<div class="firms-no-data">Satellite fire data unavailable</div>';
+        }
+    }
+
+    function getThreatColor(level) {
+        const colors = {
+            'critical': 'threat-critical',
+            'severe': 'threat-severe',
+            'moderate': 'threat-moderate',
+            'minor': 'threat-minor',
+            'none': 'threat-none'
+        };
+        return colors[level] || 'threat-none';
+    }
+
+    function getThreatEmoji(level) {
+        const emojis = {
+            'critical': '🔴',
+            'severe': '🟠',
+            'moderate': '🟡',
+            'minor': '🟢',
+            'none': '✅'
+        };
+        return emojis[level] || '✅';
+    }
+
+    function getConfidenceColor(level) {
+        const colors = {
+            'high': '#FF0000',
+            'nominal': '#FFA500',
+            'low': '#FFFF00'
+        };
+        return colors[level] || '#FFFF00';
+    }
+
+    // Initialize global FIRMS view on page load
+    try {
+        fetchRecentFires();
+    } catch (e) {
+        console.warn('Failed to initialize recent FIRMS fires:', e);
+    }
+
 });

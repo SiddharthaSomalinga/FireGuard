@@ -307,6 +307,45 @@ def test_overpass():
         return False
 
 
+def test_firms_api():
+    """Test the local FireGuard API for NASA FIRMS data."""
+    test_separator("TEST 6: FireGuard FIRMS API (/api/firms/recent)")
+    
+    try:
+        url = "http://127.0.0.1:5000/api/firms/recent"
+        print(f"🔥 Testing local FIRMS endpoint: {url}")
+        print("🔄 Fetching recent fire data for USA/Canada...\n")
+        
+        response = requests.get(url, timeout=20)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                fires = data.get("data", {}).get("fires", [])
+                print(f"✅ SUCCESS!")
+                print(f"   - Fires found (last 7 days, max 2000): {len(fires)}")
+                if fires:
+                    print(f"   - Sample fire: {fires[0]['lat']}, {fires[0]['lon']} ({fires[0]['confidence_level']})")
+                return True
+            else:
+                print(f"❌ FAILED: API returned success=false")
+                print(f"   Error: {data.get('error', 'Unknown error')}")
+                return False
+        else:
+            print(f"❌ FAILED: HTTP {response.status_code}")
+            print(f"   Response: {response.text[:200]}")
+            return False
+            
+    except requests.ConnectionError as e:
+        print(f"❌ FAILED: Could not connect to the local server.")
+        print(f"   Please make sure the Flask app is running via 'run.sh'.")
+        print(f"   Error details: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ FAILED: An unexpected error occurred: {e}")
+        return False
+
+
 def run_all_tests():
     """Run all API tests in parallel and provide summary."""
     print("\n" + "="*70)
@@ -320,6 +359,7 @@ def run_all_tests():
         ("Open-Elevation (Terrain)", test_open_elevation),
         ("OSM Nominatim (Population)", test_nominatim),
         ("OSM Overpass (Infrastructure)", test_overpass),
+        ("FireGuard FIRMS API (Local)", test_firms_api),
     ]
     
     results = {}

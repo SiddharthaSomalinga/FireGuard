@@ -9,10 +9,17 @@ import json
 import os
 import sys
 import numpy as np
+from datetime import datetime
 from functools import lru_cache
 
 # Import the fire risk analysis functions
 from fdi import analyze_location_dynamic
+from firms import (
+    analyze_active_fire_threat,
+    fetch_firms_fires,
+    get_fires_geojson,
+    fetch_recent_fires_global,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -58,6 +65,11 @@ def index():
     """Serve the main page."""
     return render_template('index.html')
 
+@app.route('/firms-demo')
+def firms_demo():
+    """Serve the NASA FIRMS map demo page."""
+    return render_template('firms_demo.html')
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
     """Analyze fire risk for a given location."""
@@ -73,6 +85,20 @@ def analyze():
         # Convert NumPy/pandas types to native Python types for JSON serialization
         result = convert_to_native_types(result)
         
+        # Get current risk level from analysis
+        current_risk_level = result.get('prolog_classification', {}).get('RiskLevel', 'moderate').lower()
+        
+        # Analyze active fires from NASA FIRMS and get threat assessment
+        threat_analysis = analyze_active_fire_threat(latitude, longitude, current_risk_level)
+        
+        # If there's an active fire threat, include it in the result
+        if threat_analysis.get('has_nearby_fires'):
+            result['active_fire_threat'] = threat_analysis
+            # If risk should be elevated, update the recommendation
+            if threat_analysis.get('recommended_risk_elevation'):
+                result['firms_risk_elevation'] = threat_analysis['recommended_risk_elevation']
+                result['prolog_classification']['Evacuation'] = 'yes' if threat_analysis['evacuation_recommended'] else result['prolog_classification'].get('Evacuation', 'no')
+        
         return jsonify({
             'success': True,
             'data': result
@@ -82,6 +108,103 @@ def analyze():
             'success': False,
             'error': str(e)
         }), 500
+
+# ============= NASA FIRMS Active Fire Overlay Routes =============
+
+@app.route('/api/firms/active-fires', methods=['POST'])
+def get_active_fires():
+    """
+    Get active satellite-detected fires near a location from NASA FIRMS API.
+    Optionally analyzes threat and provides evacuation recommendations.
+    """
+    try:
+        data = request.get_json()
+        latitude = float(data.get('latitude'))
+        longitude = float(data.get('longitude'))
+        current_risk_level = data.get('current_risk_level', 'moderate')
+        
+        # Fetch fires
+        fires = fetch_firms_fires(latitude, longitude)
+        
+        # Analyze threat level
+        threat_analysis = analyze_active_fire_threat(latitude, longitude, current_risk_level)
+        
+        # Convert to GeoJSON for mapping
+        fires_geojson = get_fires_geojson(fires)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'fires': fires,
+                'fires_geojson': fires_geojson,
+                'threat_analysis': threat_analysis,
+                'location': {'lat': latitude, 'lon': longitude},
+                'timestamp': datetime.now().isoformat()
+            }
+        })
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': f'Invalid parameters: {str(e)}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/firms/recent', methods=['GET'])
+def get_recent_fires():
+    """Return recent FIRMS fires globally (bounded by a safety limit)."""
+    try:
+        # Optional query params
+        days = int(request.args.get('days', 7))
+        max_results = int(request.args.get('max', 2000))
+
+        fires = fetch_recent_fires_global(days_back=days, max_results=max_results)
+        fires_geojson = get_fires_geojson(fires)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'fires': fires,
+                'fires_geojson': fires_geojson,
+                'timestamp': datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/firms/threat-analysis', methods=['POST'])
+def firms_threat_analysis():
+    """
+    Get threat level analysis for active fires and evacuation recommendations.
+    """
+    try:
+        data = request.get_json()
+        latitude = float(data.get('latitude'))
+        longitude = float(data.get('longitude'))
+        current_risk_level = data.get('current_risk_level', 'moderate')
+        
+        threat_analysis = analyze_active_fire_threat(latitude, longitude, current_risk_level)
+        
+        return jsonify({
+            'success': True,
+            'data': threat_analysis
+        })
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': f'Invalid parameters: {str(e)}'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # ============= Prolog API Routes =============
 

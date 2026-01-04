@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FireGuard - Wildfire Risk Assessment</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -86,6 +89,36 @@
                 <div class="risk-explanation-card" id="riskExplanationCard">
                     <h3>❓ Why Is This The Risk?</h3>
                     <div class="explanation-content" id="riskExplanation"></div>
+                </div>
+
+                <!-- NASA FIRMS Active Fire Overlay Section -->
+                <div class="detail-card firms-card" id="firmsCard" style="display: block;">
+                    <h3>🛰️ NASA FIRMS Active Fires</h3>
+                    <div class="detail-content" id="firmsContent">
+                        <div class="firms-loading">Loading satellite fire data...</div>
+                    </div>
+                    <!-- Interactive Fire Map -->
+                    <div id="firmsMapContainer" class="firms-map-container" style="display: block;">
+                        <div id="firmsMap" class="firms-map"></div>
+                        <div class="map-legend">
+                            <div class="legend-item">
+                                <span class="legend-marker" style="background-color: #FF0000;"></span>
+                                <span>High Confidence</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-marker" style="background-color: #FFA500;"></span>
+                                <span>Nominal Confidence</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-marker" style="background-color: #FFFF00;"></span>
+                                <span>Low Confidence</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-marker" style="background-color: #4285F4;"></span>
+                                <span>Your Location</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="details-grid">

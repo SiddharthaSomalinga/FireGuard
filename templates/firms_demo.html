@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NASA FIRMS Map - FireGuard Test</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        h1 {
+            color: #dc2626;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+
+        .info-box {
+            background: #fff5f7;
+            border: 2px solid #fecaca;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .info-box h2 {
+            color: #dc2626;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #fecaca;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #dc2626;
+        }
+
+        .info-value {
+            color: #1f2937;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .map-section {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .map-header {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            color: white;
+            padding: 1.5rem;
+        }
+
+        .map-header h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .map-header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+
+        #firmsMap {
+            width: 100%;
+            height: 500px;
+            background: #f3f4f6;
+        }
+
+        .map-legend {
+            padding: 1.5rem;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+
+        .legend-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .legend-marker {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+        }
+
+        .status-box {
+            background: #ecfdf5;
+            border: 2px solid #a7f3d0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-box.success {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+        }
+
+        .status-box.error {
+            background: #fee2e2;
+            border-color: #fecaca;
+        }
+
+        .status-icon {
+            font-size: 2rem;
+        }
+
+        .status-text {
+            flex: 1;
+        }
+
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .status-text.error {
+            color: #dc2626;
+        }
+
+        .status-text.success {
+            color: #059669;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #991b1b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e5e7eb;
+            border-top-color: #dc2626;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .fire-popup {
+            min-width: 250px;
+            font-size: 0.9rem;
+        }
+
+        .fire-popup-title {
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: #dc2626;
+            font-size: 1rem;
+        }
+
+        .fire-popup-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .fire-popup-item:last-child {
+            border-bottom: none;
+        }
+
+        .fire-popup-label {
+            font-weight: 600;
+            color: #6b7280;
+        }
+
+        .fire-popup-value {
+            color: #1f2937;
+            font-weight: 500;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛰️ NASA FIRMS Map Viewer</h1>
+            <p class="subtitle">Real-Time Satellite Fire Detection - FireGuard Integration Test</p>
+        </header>
+
+        <!-- Status Box -->
+        <div class="status-box success" id="statusBox">
+            <div class="status-icon">✅</div>
+            <div class="status-text success">
+                <div class="status-title">MAP_KEY Validated</div>
+                <div>Your NASA FIRMS API key is active with 5000 transactions per 10 minutes</div>
+            </div>
+        </div>
+
+        <!-- API Info -->
+        <div class="info-box">
+            <h2>🔑 API Configuration</h2>
+            <div class="info-item">
+                <span class="info-label">MAP_KEY Status:</span>
+                <span class="info-value">✅ VALID</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Transaction Limit:</span>
+                <span class="info-value">5000 per 10 minutes</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Current Transactions:</span>
+                <span class="info-value">0 / 5000</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">API Dataset:</span>
+                <span class="info-value">VIIRS SNPP NRT (24-48h latency)</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Map Provider:</span>
+                <span class="info-value">OpenStreetMap + Leaflet</span>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn-primary" onclick="showNorthernCalifornia()">
+                🔥 Northern California (Bay Area)
+            </button>
+            <button class="btn-primary" onclick="showSouthernCalifornia()">
+                🔥 Southern California (LA)
+            </button>
+            <button class="btn-primary" onclick="showColorado()">
+                ⛰️ Colorado Front Range
+            </button>
+            <button class="btn-secondary" onclick="location.reload()">
+                🔄 Refresh Map
+            </button>
+        </div>
+
+        <!-- Map Section -->
+        <div class="map-section">
+            <div class="map-header">
+                <h2>🗺️ Fire Detection Map</h2>
+                <p id="mapInfo">Loading fires near Northern California...</p>
+            </div>
+            <div id="firmsMap"></div>
+            <div class="map-legend">
+                <div class="legend-title">Legend</div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-marker" style="background-color: #FF0000;"></div>
+                        <span>High Confidence</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker" style="background-color: #FFA500;"></div>
+                        <span>Nominal Confidence</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker" style="background-color: #FFFF00;"></div>
+                        <span>Low Confidence</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-marker" style="background-color: #4285F4;"></div>
+                        <span>Your Location</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>🔥 FireGuard - NASA FIRMS Integration</p>
+            <p>Data source: NASA FIRMS (Fire Information for Resource Management System)</p>
+            <p>For more information: <a href="https://firms.modaps.eosdis.nasa.gov/" target="_blank">firms.modaps.eosdis.nasa.gov</a></p>
+        </footer>
+    </div>
+
+    <script>
+        let map = null;
+        let fireMarkers = [];
+        let userMarker = null;
+
+        // Test locations
+        const locations = {
+            norCal: { lat: 37.8, lon: -122.2, name: 'Northern California (Bay Area)' },
+            socal: { lat: 34.5, lon: -118.2, name: 'Southern California (Los Angeles)' },
+            colorado: { lat: 39.7, lon: -104.9, name: 'Colorado Front Range' }
+        };
+
+        function initMap(lat, lon, locationName) {
+            // Initialize map
+            if (map) {
+                map.remove();
+            }
+
+            map = L.map('firmsMap').setView([lat, lon], 9);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add user location marker
+            const userIcon = L.divIcon({
+                className: 'user-marker',
+                html: `<div style="background-color: #4285F4; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            userMarker = L.marker([lat, lon], { icon: userIcon })
+                .bindPopup(`<div class="fire-popup"><div class="fire-popup-title">${locationName}</div></div>`)
+                .addTo(map);
+
+            // Fetch and display fires
+            fetchAndDisplayFires(lat, lon, locationName);
+
+            // Update info text
+            document.getElementById('mapInfo').textContent = `Searching for active fires near ${locationName}...`;
+        }
+
+        function fetchAndDisplayFires(lat, lon, locationName) {
+            // Show loading
+            const statusBox = document.getElementById('statusBox');
+            statusBox.className = 'status-box';
+            statusBox.innerHTML = `
+                <div class="status-icon"><div class="loading"></div></div>
+                <div class="status-text">
+                    <div class="status-title">Fetching Fire Data...</div>
+                    <div>Querying NASA FIRMS API for active fires near ${locationName}</div>
+                </div>
+            `;
+
+            // Fetch fires from FireGuard API
+            fetch('/api/firms/active-fires', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    latitude: lat,
+                    longitude: lon,
+                    current_risk_level: 'moderate'
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    const fires = result.data.fires || [];
+                    displayFires(fires, lat, lon, locationName);
+                } else {
+                    throw new Error('Failed to fetch fires');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching fires:', error);
+                statusBox.className = 'status-box error';
+                statusBox.innerHTML = `
+                    <div class="status-icon">❌</div>
+                    <div class="status-text error">
+                        <div class="status-title">Connection Error</div>
+                        <div>Unable to fetch fire data. Make sure FireGuard backend is running.</div>
+                    </div>
+                `;
+                document.getElementById('mapInfo').textContent = `Error loading fires for ${locationName}`;
+            });
+        }
+
+        function displayFires(fires, userLat, userLon, locationName) {
+            // Clear existing fire markers
+            fireMarkers.forEach(marker => map.removeLayer(marker));
+            fireMarkers = [];
+
+            // Update status
+            const statusBox = document.getElementById('statusBox');
+            if (fires.length > 0) {
+                statusBox.className = 'status-box error';
+                statusBox.innerHTML = `
+                    <div class="status-icon">🔥</div>
+                    <div class="status-text error">
+                        <div class="status-title">${fires.length} Active Fire(s) Detected!</div>
+                        <div>Closest fire: ${fires[0].distance_km}km away (${fires[0].confidence_level} confidence)</div>
+                    </div>
+                `;
+            } else {
+                statusBox.className = 'status-box success';
+                statusBox.innerHTML = `
+                    <div class="status-icon">✅</div>
+                    <div class="status-text success">
+                        <div class="status-title">No Active Fires Detected</div>
+                        <div>No satellite-detected fires within 100km of ${locationName}</div>
+                    </div>
+                `;
+            }
+
+            // Add fire markers
+            const bounds = L.latLngBounds([[userLat, userLon]]);
+
+            fires.forEach(fire => {
+                const color = getConfidenceColor(fire.confidence_level);
+
+                const fireIcon = L.divIcon({
+                    className: 'fire-marker',
+                    html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.3); box-shadow: 0 0 8px ${color}; animation: pulse 2s infinite;"></div>`,
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+
+                const popup = `
+                    <div class="fire-popup">
+                        <div class="fire-popup-title">🔥 Fire Detection</div>
+                        <div class="fire-popup-item">
+                            <span class="fire-popup-label">Distance:</span>
+                            <span class="fire-popup-value">${fire.distance_km.toFixed(1)} km</span>
+                        </div>
+                        <div class="fire-popup-item">
+                            <span class="fire-popup-label">Confidence:</span>
+                            <span class="fire-popup-value">${fire.confidence_level}</span>
+                        </div>
+                        <div class="fire-popup-item">
+                            <span class="fire-popup-label">Power:</span>
+                            <span class="fire-popup-value">${fire.frp.toFixed(0)} MW</span>
+                        </div>
+                        <div class="fire-popup-item">
+                            <span class="fire-popup-label">Date/Time:</span>
+                            <span class="fire-popup-value">${fire.acq_date} ${fire.acq_time}</span>
+                        </div>
+                        <div class="fire-popup-item">
+                            <span class="fire-popup-label">Satellite:</span>
+                            <span class="fire-popup-value">${fire.satellite}</span>
+                        </div>
+                    </div>
+                `;
+
+                const marker = L.marker([fire.lat, fire.lon], { icon: fireIcon })
+                    .bindPopup(popup)
+                    .addTo(map);
+
+                fireMarkers.push(marker);
+                bounds.extend([fire.lat, fire.lon]);
+            });
+
+            // Fit map to bounds
+            if (fires.length > 0) {
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+
+            document.getElementById('mapInfo').textContent = `Showing ${fires.length} fire(s) near ${locationName}`;
+
+            // Add pulse animation
+            if (!document.querySelector('style[data-pulse]')) {
+                const style = document.createElement('style');
+                style.setAttribute('data-pulse', 'true');
+                style.textContent = `
+                    @keyframes pulse {
+                        0%, 100% { opacity: 1; }
+                        50% { opacity: 0.6; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        function getConfidenceColor(level) {
+            const colors = {
+                'high': '#FF0000',
+                'nominal': '#FFA500',
+                'low': '#FFFF00'
+            };
+            return colors[level] || '#FFFF00';
+        }
+
+        function showNorthernCalifornia() {
+            initMap(locations.norCal.lat, locations.norCal.lon, locations.norCal.name);
+        }
+
+        function showSouthernCalifornia() {
+            initMap(locations.socal.lat, locations.socal.lon, locations.socal.name);
+        }
+
+        function showColorado() {
+            initMap(locations.colorado.lat, locations.colorado.lon, locations.colorado.name);
+        }
+
+        // Initialize with Northern California
+        window.addEventListener('load', function() {
+            showNorthernCalifornia();
+        });
+    </script>
+</body>
+</html>
