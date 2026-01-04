@@ -144,16 +144,154 @@ calculate_risk(Fuel, Temp, Hum, Wind, Topo, Pop, Infra, RiskLevel) :-
 % EVACUATION & RESOURCE RECOMMENDATIONS
 % ============================================
 
+% Enhanced evacuation recommendation based on multiple factors
+% evac_recommendation(RiskLevel, Population, Infrastructure, FireProximity, EvacType, EvacUrgency)
+evac_recommendation(RiskLevel, Population, Infrastructure, FireProximity, EvacType, EvacUrgency) :-
+    % Determine base evacuation need from risk level
+    base_evac_need(RiskLevel, BaseNeed),
+    % Amplify based on population at risk
+    population_factor(Population, PopFactor),
+    % Amplify based on infrastructure importance
+    infrastructure_factor(Infrastructure, InfraFactor),
+    % Amplify based on active fire proximity
+    fire_proximity_factor(FireProximity, FireFactor),
+    % Calculate combined urgency score
+    UrgencyScore is BaseNeed + PopFactor + InfraFactor + FireFactor,
+    classify_evacuation(UrgencyScore, EvacType, EvacUrgency).
+
+% Base evacuation need by risk level (0-10 scale)
+base_evac_need('Very Low', 0).
+base_evac_need('Low', 1).
+base_evac_need('Medium', 3).
+base_evac_need('High', 6).
+base_evac_need('Very High', 8).
+base_evac_need('Extreme', 10).
+
+% Population factor (amplifies evacuation need)
+population_factor(low, 0).
+population_factor(medium, 2).
+population_factor(high, 4).
+
+% Infrastructure criticality factor (amplifies evacuation need)
+infrastructure_factor(no, 0).
+infrastructure_factor(no_critical, 0).
+infrastructure_factor(slightly_critical, 1).
+infrastructure_factor(critical, 3).
+
+% Fire proximity factor (0-5km, 5-15km, 15-25km, 25km+)
+fire_proximity_factor(none, 0).           % No active fires
+fire_proximity_factor(far, 0.5).          % 25+ km away
+fire_proximity_factor(distant, 1).        % 15-25 km away
+fire_proximity_factor(moderate, 3).       % 5-15 km away
+fire_proximity_factor(close, 5).          % Within 5 km
+fire_proximity_factor(critical, 8).       % Within 2 km
+
+% Evacuation classification based on urgency score
+classify_evacuation(Score, no_evac, none) :- Score < 2, !.
+classify_evacuation(Score, prepare, low) :- Score < 4, !.
+classify_evacuation(Score, prepare, high) :- Score < 6, !.
+classify_evacuation(Score, evacuate, immediate) :- Score < 8, !.
+classify_evacuation(_, evacuate, mandatory).
+
+% Detailed resource allocation considering all factors
+allocate_resources(RiskLevel, Population, Infrastructure, FireProximity, Resources, Quantities) :-
+    allocate_base_resources(RiskLevel, BaseRes),
+    scale_by_population(Population, BaseRes, PopScaled),
+    enhance_for_infrastructure(Infrastructure, PopScaled, InfraEnhanced),
+    enhance_for_proximity(FireProximity, InfraEnhanced, FinalRes),
+    calculate_quantities(FinalRes, Population, FireProximity, Resources, Quantities).
+
+allocate_base_resources('Very Low', [fire_trucks:1]).
+allocate_base_resources('Low', [fire_trucks:2]).
+allocate_base_resources('Medium', [fire_trucks:3, water_tankers:2, helicopters:0]).
+allocate_base_resources('High', [fire_trucks:4, water_tankers:3, helicopters:1]).
+allocate_base_resources('Very High', [fire_trucks:6, water_tankers:4, helicopters:2, command_center:1]).
+allocate_base_resources('Extreme', [fire_trucks:8, water_tankers:6, helicopters:3, command_center:1, aerial_support:2]).
+
+% Scale resources up for high population areas
+scale_by_population(low, Resources, Resources).
+scale_by_population(medium, Resources, Scaled) :-
+    multiply_resource_list(Resources, 1.5, Scaled).
+scale_by_population(high, Resources, Scaled) :-
+    multiply_resource_list(Resources, 2.0, Scaled).
+
+% Enhance for critical infrastructure
+enhance_for_infrastructure(no, Resources, Resources).
+enhance_for_infrastructure(no_critical, Resources, Resources).
+enhance_for_infrastructure(slightly_critical, Resources, Enhanced) :-
+    add_resource(Resources, command_posts:1, Enhanced).
+enhance_for_infrastructure(critical, Resources, Enhanced) :-
+    add_resource(Resources, command_center:1, R1),
+    add_resource(R1, additional_personnel:50, Enhanced).
+
+% Enhance for fire proximity (reduce response time)
+enhance_for_proximity(none, Resources, Resources).
+enhance_for_proximity(far, Resources, Resources).
+enhance_for_proximity(distant, Resources, Resources).
+enhance_for_proximity(moderate, Resources, Enhanced) :-
+    add_resource(Resources, water_tankers:2, R1),
+    add_resource(R1, aerial_reconnaissance:1, Enhanced).
+enhance_for_proximity(close, Resources, Enhanced) :-
+    add_resource(Resources, aerial_support:1, R1),
+    add_resource(R1, ground_crews:100, R2),
+    add_resource(R2, heavy_equipment:5, Enhanced).
+enhance_for_proximity(critical, Resources, Enhanced) :-
+    add_resource(Resources, aerial_support:2, R1),
+    add_resource(R1, ground_crews:200, R2),
+    add_resource(R2, heavy_equipment:8, R3),
+    add_resource(R3, ambulance_units:10, Enhanced).
+
+% Helper: multiply resource quantities
+multiply_resource_list([], _, []).
+multiply_resource_list([Resource:Qty|Rest], Factor, [Resource:ScaledQty|Scaled]) :-
+    ScaledQty is ceiling(Qty * Factor),
+    multiply_resource_list(Rest, Factor, Scaled).
+
+% Helper: add a resource to list
+add_resource(List, Resource, [Resource|List]).
+
+% Calculate specific resource quantities based on area size and threat
+calculate_quantities(ResourceList, PopDensity, FireProximity, FormattedResources, Quantities) :-
+    format_resources(ResourceList, FormattedResources),
+    quantity_adjustments(PopDensity, FireProximity, ResourceList, Quantities).
+
+% Format resource list for output
+format_resources([], []).
+format_resources([Resource:_|Rest], [Resource|Formatted]) :-
+    format_resources(Rest, Formatted).
+
+% Provide specific quantity recommendations
+quantity_adjustments(PopDensity, FireProximity, Resources, Adjustments) :-
+    findall(Adj, resource_quantity_rule(PopDensity, FireProximity, Resources, Adj), Adjustments).
+
+resource_quantity_rule(medium, moderate, Resources, "Dispatch helicopters within 30 minutes for water drops") :-
+    member(helicopters:N, Resources), N > 0.
+resource_quantity_rule(high, close, _, "Establish two command centers for coordinated response").
+resource_quantity_rule(high, critical, _, "Activate emergency mutual aid agreements with neighboring jurisdictions").
+resource_quantity_rule(_, moderate, Resources, "Pre-position water tankers at strategic locations") :-
+    member(water_tankers:N, Resources), N >= 2.
+resource_quantity_rule(_, close, _, "Establish evacuation shelters and assembly points immediately").
+resource_quantity_rule(_, critical, _, "Activate state/federal emergency declaration procedures").
+
+% Backward compatibility: simple recommendation
 evac_and_res(RiskLevel, Evac, Res) :-
-    (
-        RiskLevel = 'Very Low' -> Evac = no, Res = fire_engines;
-        RiskLevel = 'Low' -> Evac = no, Res = fire_engines;
-        RiskLevel = 'Medium' -> Evac = maybe, Res = fire_engines_and_water_tankers;
-        RiskLevel = 'High' -> Evac = maybe, Res = fire_engines_and_water_tankers;
-        RiskLevel = 'Very High' -> Evac = yes, Res = fire_engines_and_water_tankers;
-        RiskLevel = 'Extreme' -> Evac = yes, Res = fire_engines_and_water_tankers_and_aerial_support;
-        Evac = no, Res = fire_engines
-    ).
+    evac_recommendation(RiskLevel, low, no, none, EvacType, _),
+    evac_type_to_simple(EvacType, Evac),
+    allocate_base_resources(RiskLevel, ResourceList),
+    format_resources(ResourceList, ResNames),
+    atom_concat_list(ResNames, Res).
+
+evac_type_to_simple(no_evac, no).
+evac_type_to_simple(prepare, maybe).
+evac_type_to_simple(evacuate, yes).
+
+% Helper: concatenate atoms
+atom_concat_list([], '').
+atom_concat_list([X], X) :- !.
+atom_concat_list([H|T], Result) :-
+    atom_concat_list(T, Rest),
+    atomic_concat(H, '_and_', Temp),
+    atomic_concat(Temp, Rest, Result).
 
 % ============================================
 % PRIORITY ORDERING & REPORTING
