@@ -24,6 +24,31 @@
         </header>
 
         <main>
+            <!-- Live Wildfire Map Section -->
+            <div class="detail-card firms-card" id="liveFirmsCard" style="display: block; margin-bottom: 2rem;">
+                <h3>🛰️ Live Wildfires in USA/Canada</h3>
+                <div class="detail-content" id="liveFirmsContent">
+                    <div class="firms-loading">Loading live wildfire data...</div>
+                </div>
+                <div id="liveFirmsMapContainer" class="firms-map-container" style="display: block;">
+                    <div id="liveFirmsMap" class="firms-map"></div>
+                    <div class="map-legend">
+                        <div class="legend-item">
+                            <span class="legend-marker" style="background-color: #FF0000;"></span>
+                            <span>High Confidence</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-marker" style="background-color: #FFA500;"></span>
+                            <span>Nominal Confidence</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-marker" style="background-color: #FFFF00;"></span>
+                            <span>Low Confidence</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="input-section">
                 <h2>Enter Location</h2>
                 <button type="button" id="useLocationBtn" class="btn-secondary">📍 Use My Location</button>
@@ -112,10 +137,6 @@
                             <div class="legend-item">
                                 <span class="legend-marker" style="background-color: #FFFF00;"></span>
                                 <span>Low Confidence</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-marker" style="background-color: #4285F4;"></span>
-                                <span>Your Location</span>
                             </div>
                         </div>
                     </div>

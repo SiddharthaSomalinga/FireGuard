@@ -979,7 +979,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Show map
             firmsMapContainer.style.display = 'block';
-            // Initialize map after HTML is rendered with location-specific view
+            // Initialize map after HTML is rendered with location-specific view (no user marker)
             setTimeout(() => {
                 initializeFIRMSMap(data.location.lat, data.location.lon, fires, false);
             }, 100);
@@ -997,6 +997,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     let firmsMapInstance = null;
+    let liveFirmsMapInstance = null;
 
     function initializeFIRMSMap(userLat, userLon, fires, isGlobalView = false) {
         const mapElement = document.getElementById('firmsMap');
@@ -1074,6 +1075,87 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function initializeLiveFirmsMap(fires) {
+        const mapElement = document.getElementById('liveFirmsMap');
+        if (!mapElement) return;
+        
+        // Destroy existing map if it exists
+        if (liveFirmsMapInstance) {
+            liveFirmsMapInstance.remove();
+        }
+        
+        // Center on continental USA/Canada
+        const centerLat = 50.0;
+        const centerLon = -100.0;
+        const zoomLevel = 4;
+        
+        // Create new map
+        liveFirmsMapInstance = L.map('liveFirmsMap').setView([centerLat, centerLon], zoomLevel);
+        
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(liveFirmsMapInstance);
+        
+        // Add fire markers (no user location marker)
+        fires.forEach(fire => {
+            const color = getConfidenceColor(fire.confidence_level);
+            
+            const fireIcon = L.divIcon({
+                className: 'fire-marker-icon',
+                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.3); box-shadow: 0 0 6px ${color}; animation: pulse 2s infinite;"></div>`,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            
+            const popup = `
+                <div class="fire-popup">
+                    <div class="fire-popup-title">🔥 Fire Detection</div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Confidence:</span>
+                        <span class="fire-popup-value">${fire.confidence_level}</span>
+                    </div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Power:</span>
+                        <span class="fire-popup-value">${fire.frp.toFixed(0)} MW</span>
+                    </div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Date/Time:</span>
+                        <span class="fire-popup-value">${fire.acq_date} ${fire.acq_time}</span>
+                    </div>
+                    <div class="fire-popup-item">
+                        <span class="fire-popup-label">Satellite:</span>
+                        <span class="fire-popup-value">${fire.satellite}</span>
+                    </div>
+                </div>
+            `;
+            
+            L.marker([fire.lat, fire.lon], { icon: fireIcon })
+                .bindPopup(popup)
+                .addTo(liveFirmsMapInstance);
+        });
+        
+        // Fit bounds to show all fires
+        if (fires.length > 0) {
+            const bounds = L.latLngBounds(fires.map(fire => [fire.lat, fire.lon]));
+            liveFirmsMapInstance.fitBounds(bounds, { padding: [50, 50] });
+        }
+        
+        // Add pulse animation if not already added
+        if (!document.querySelector('style[data-pulse]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-pulse', 'true');
+            style.textContent = `
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.6; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
     // Fetch recent global FIRMS fires and initialize map on page load
     async function fetchRecentFires() {
         const firmsContent = document.getElementById('firmsContent');
@@ -1097,6 +1179,46 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) {
             console.warn('Error fetching recent FIRMS fires:', err);
             firmsContent.innerHTML = '<div class="firms-no-data">Satellite fire data unavailable</div>';
+        }
+    }
+
+    // Fetch and display live wildfires for the main page map
+    async function fetchLiveWildfires() {
+        const liveFirmsContent = document.getElementById('liveFirmsContent');
+        const liveFirmsMapContainer = document.getElementById('liveFirmsMapContainer');
+        
+        try {
+            liveFirmsMapContainer.style.display = 'block';
+            liveFirmsContent.innerHTML = '<div class="firms-loading">Loading live wildfire data from NASA FIRMS...</div>';
+
+            const resp = await fetch('/api/firms/recent?days=7&max=2000');
+            if (!resp.ok) throw new Error('Failed to fetch recent fires');
+            const json = await resp.json();
+            
+            if (json.success && json.data) {
+                const fires = json.data.fires || [];
+                
+                // Update content with fire count
+                liveFirmsContent.innerHTML = `
+                    <div class="firms-status good">
+                        <div class="firms-status-icon">🔥</div>
+                        <div class="firms-status-text">
+                            <div class="firms-status-title">${fires.length} Active Wildfires Detected</div>
+                            <div class="firms-status-desc">Live satellite data from NASA FIRMS (last 7 days)</div>
+                        </div>
+                    </div>
+                `;
+                
+                // Initialize map with all fires
+                setTimeout(() => {
+                    initializeLiveFirmsMap(fires);
+                }, 100);
+            } else {
+                liveFirmsContent.innerHTML = '<div class="firms-no-data">No recent FIRMS data available</div>';
+            }
+        } catch (err) {
+            console.error('Error fetching live wildfires:', err);
+            liveFirmsContent.innerHTML = '<div class="firms-no-data">Unable to load satellite fire data. Please try again later.</div>';
         }
     }
 
@@ -1136,6 +1258,13 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchRecentFires();
     } catch (e) {
         console.warn('Failed to initialize recent FIRMS fires:', e);
+    }
+
+    // Initialize live wildfires map on page load
+    try {
+        fetchLiveWildfires();
+    } catch (e) {
+        console.warn('Failed to initialize live wildfires map:', e);
     }
 
 });
