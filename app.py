@@ -20,6 +20,11 @@ from firms import (
     get_fires_geojson,
     fetch_recent_fires_global,
 )
+from risk_layer import (
+    generate_geojson_risk_layer,
+    get_risk_layer_summary,
+    get_layer_configuration,
+)
 
 
 # ============= Enhanced Recommendations Logic =============
@@ -458,6 +463,78 @@ def firms_threat_analysis():
             'success': False,
             'error': f'Invalid parameters: {str(e)}'
         }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============= Geospatial Risk Layer Routes =============
+
+@app.route('/api/risk-layer/config', methods=['GET'])
+def risk_layer_config():
+    """Get risk layer configuration for client-side rendering."""
+    try:
+        config = get_layer_configuration()
+        return jsonify({
+            'success': True,
+            'data': config
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/risk-layer/geojson', methods=['GET'])
+def risk_layer_geojson():
+    """
+    Get pre-rendered risk layer as GeoJSON FeatureCollection.
+    Supports query parameters:
+    - grid_resolution: 0.5 (default), 1.0, 2.0 degrees
+    - bounds: default continental USA/Canada
+    
+    Returns a deterministic GeoJSON with risk assessment grid ready for map integration.
+    """
+    try:
+        # Parse optional parameters
+        grid_res = float(request.args.get('grid_resolution', 0.5))
+        grid_res = max(0.25, min(5.0, grid_res))  # Clamp to reasonable range
+        
+        # Generate GeoJSON risk layer
+        geojson = generate_geojson_risk_layer(
+            grid_resolution=grid_res,
+            include_fires=True
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': geojson
+        })
+    except Exception as e:
+        import traceback
+        print(f"Risk layer error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/risk-layer/summary', methods=['GET'])
+def risk_layer_summary_endpoint():
+    """
+    Get lightweight summary of risk layer.
+    Useful for dashboard displays and monitoring.
+    """
+    try:
+        summary = get_risk_layer_summary()
+        return jsonify({
+            'success': True,
+            'data': summary
+        })
     except Exception as e:
         return jsonify({
             'success': False,

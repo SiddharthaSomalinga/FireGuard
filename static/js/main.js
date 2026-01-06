@@ -1003,8 +1003,133 @@ document.addEventListener('DOMContentLoaded', function() {
         return colors[level] || '#FFFF00';
     }
 
+    // ============= Risk Layer Functions =============
+    
+    let riskLayerMapInstance = null;
+    
+    function initializeRiskLayerMap(geojson) {
+        const mapElement = document.getElementById('riskLayerMap');
+        if (!mapElement) return;
+        
+        if (riskLayerMapInstance) {
+            riskLayerMapInstance.remove();
+        }
+        
+        const centerLat = 45.0;
+        const centerLon = -100.0;
+        const zoomLevel = 4;
+        
+        riskLayerMapInstance = L.map('riskLayerMap').setView([centerLat, centerLon], zoomLevel);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(riskLayerMapInstance);
+        
+        // Add GeoJSON features to map
+        if (geojson && geojson.features) {
+            geojson.features.forEach(feature => {
+                const props = feature.properties;
+                const riskScore = props.risk_score || 50;
+                const riskCategory = props.risk_category || 'moderate';
+                const color = props.risk_color || '#FFA500';
+                
+                // Create polygon layer
+                L.geoJSON(feature, {
+                    style: {
+                        fillColor: color,
+                        weight: 1,
+                        opacity: 0.7,
+                        color: '#333',
+                        dashArray: '3',
+                        fillOpacity: 0.6
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const popup = `
+                            <div class="risk-popup">
+                                <div class="risk-popup-title">📊 Risk Assessment</div>
+                                <div class="risk-popup-item">
+                                    <span class="risk-popup-label">Risk Score:</span>
+                                    <span class="risk-popup-value">${riskScore.toFixed(1)}/100</span>
+                                </div>
+                                <div class="risk-popup-item">
+                                    <span class="risk-popup-label">Category:</span>
+                                    <span class="risk-popup-value">${riskCategory}</span>
+                                </div>
+                                <div class="risk-popup-item">
+                                    <span class="risk-popup-label">FDI Risk:</span>
+                                    <span class="risk-popup-value">${props.fdi_risk.toFixed(1)}</span>
+                                </div>
+                                <div class="risk-popup-item">
+                                    <span class="risk-popup-label">Fire Proximity:</span>
+                                    <span class="risk-popup-value">${props.fire_proximity_risk.toFixed(1)}</span>
+                                </div>
+                                ${props.closest_fire_km ? `
+                                <div class="risk-popup-item">
+                                    <span class="risk-popup-label">Closest Fire:</span>
+                                    <span class="risk-popup-value">${props.closest_fire_km.toFixed(1)} km</span>
+                                </div>
+                                ` : ''}
+                                <div class="risk-popup-item">
+                                    <span class="risk-popup-label">Nearby Fires:</span>
+                                    <span class="risk-popup-value">${props.nearby_fires}</span>
+                                </div>
+                            </div>
+                        `;
+                        layer.bindPopup(popup);
+                    }
+                }).addTo(riskLayerMapInstance);
+            });
+        }
+    }
+    
+    async function fetchAndDisplayRiskLayer() {
+        const riskLayerContent = document.getElementById('riskLayerContent');
+        const riskLayerMapContainer = document.getElementById('riskLayerMapContainer');
+        
+        try {
+            riskLayerMapContainer.style.display = 'block';
+            riskLayerContent.innerHTML = '<div class="firms-loading">Generating geospatial risk layer...</div>';
+            
+            const resp = await fetch('/api/risk-layer/geojson?grid_resolution=1.0');
+            if (!resp.ok) throw new Error('Failed to fetch risk layer');
+            const json = await resp.json();
+            
+            if (json.success && json.data) {
+                const geojson = json.data;
+                const metadata = geojson.metadata || {};
+                
+                riskLayerContent.innerHTML = `
+                    <div class="firms-status good">
+                        <div class="firms-status-icon">🗺️</div>
+                        <div class="firms-status-text">
+                            <div class="firms-status-title">Risk Layer Ready</div>
+                            <div class="firms-status-desc">${metadata.total_cells} grid cells analyzed with ${metadata.fire_count} active fires detected</div>
+                        </div>
+                    </div>
+                `;
+                
+                setTimeout(() => {
+                    initializeRiskLayerMap(geojson);
+                }, 100);
+            } else {
+                riskLayerContent.innerHTML = '<div class="firms-no-data">Unable to generate risk layer</div>';
+            }
+        } catch (err) {
+            console.error('Error fetching risk layer:', err);
+            riskLayerContent.innerHTML = '<div class="firms-no-data">Unable to load risk layer. Please try again later.</div>';
+        }
+    }
+
     // Initialize global FIRMS view on page load
     // Preload summary disabled
+
+    // Initialize risk layer on page load
+    try {
+        fetchAndDisplayRiskLayer();
+    } catch (e) {
+        console.warn('Failed to initialize risk layer map:', e);
+    }
 
     // Initialize live wildfires map on page load
     try {

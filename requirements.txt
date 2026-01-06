@@ -8,5 +8,8 @@ requests-cache>=1.1.1
 retry-requests>=1.0.0
 requests>=2.31.0
 
+# Geospatial Risk Layer (uses GeoJSON/NumPy for grid-based risk assessment)
+# No additional dependencies needed - uses existing numpy, requests
+
 # Note: For Python 3.13, use pandas>=2.2.0 (pandas 2.1.3 is not compatible)
 

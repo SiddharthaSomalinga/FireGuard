@@ -451,3 +451,4 @@ area_details(pacific_nw, moist, low, high, moderate, flat, high, no_critical).
 area_details(arizona, moist, moderate, moderate, low, flat, high, no_critical).
 area_details(colorado, moist, low, low, low, flat, high, no_critical).
 area_details(norcal, moist, low, high, moderate, flat, high, no_critical).
+area_details(dynamic_area, moist, moderate, moderate, strong, flat, low, no_critical).
