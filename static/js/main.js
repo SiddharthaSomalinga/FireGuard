@@ -1091,7 +1091,11 @@ document.addEventListener('DOMContentLoaded', function() {
             riskLayerMapContainer.style.display = 'block';
             riskLayerContent.innerHTML = '<div class="firms-loading">Generating geospatial risk layer...</div>';
             
-            const resp = await fetch('/api/risk-layer/geojson?grid_resolution=1.0');
+            // Use environment-aware grid resolution: 2.0° for production (memory-safe), 1.0° for localhost
+            const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            const gridResolution = isProduction ? '2.0' : '1.0';
+            
+            const resp = await fetch(`/api/risk-layer/geojson?grid_resolution=${gridResolution}`);
             if (!resp.ok) throw new Error('Failed to fetch risk layer');
             const json = await resp.json();
             

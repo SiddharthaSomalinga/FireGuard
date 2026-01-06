@@ -493,20 +493,23 @@ def risk_layer_geojson():
     """
     Get pre-rendered risk layer as GeoJSON FeatureCollection.
     Supports query parameters:
-    - grid_resolution: 0.5 (default), 1.0, 2.0 degrees
+    - grid_resolution: 2.0 (default for production), 1.0, 0.5 degrees
     - bounds: default continental USA/Canada
     
     Returns a deterministic GeoJSON with risk assessment grid ready for map integration.
+    Memory-optimized for production deployment (max 500 cells).
     """
     try:
         # Parse optional parameters
-        grid_res = float(request.args.get('grid_resolution', 0.5))
-        grid_res = max(0.25, min(5.0, grid_res))  # Clamp to reasonable range
+        # Default to 2.0° for production (memory-safe), allow override
+        grid_res = float(request.args.get('grid_resolution', 2.0))
+        grid_res = max(1.0, min(5.0, grid_res))  # Clamp to safe range (1.0-5.0)
         
-        # Generate GeoJSON risk layer
+        # Generate GeoJSON risk layer with memory limit
         geojson = generate_geojson_risk_layer(
             grid_resolution=grid_res,
-            include_fires=True
+            include_fires=True,
+            max_cells=500  # Hard limit to prevent OOM
         )
         
         return jsonify({

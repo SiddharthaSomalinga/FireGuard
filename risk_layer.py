@@ -239,14 +239,17 @@ def compute_fire_proximity_risk(latitude: float, longitude: float,
 
 def generate_geojson_risk_layer(bounds: Dict = None, 
                                grid_resolution: float = None,
-                               include_fires: bool = True) -> Dict:
+                               include_fires: bool = True,
+                               max_cells: int = 500) -> Dict:
     """
     Generate GeoJSON FeatureCollection with risk assessment grid.
+    Memory-optimized for production deployment.
     
     Args:
         bounds: Bounding box {'north', 'south', 'east', 'west'}
         grid_resolution: Grid cell size in degrees
         include_fires: Include nearby fires in feature properties
+        max_cells: Maximum number of grid cells to generate (memory safety limit)
         
     Returns:
         GeoJSON FeatureCollection with risk features
@@ -256,33 +259,76 @@ def generate_geojson_risk_layer(bounds: Dict = None,
     if grid_resolution is None:
         grid_resolution = RISK_LAYER_CONFIG['grid_resolution']
     
-    # Fetch active fires for proximity analysis
-    active_fires = fetch_recent_fires_global(days_back=7, max_results=5000) if include_fires else []
+    # Fetch active fires for proximity analysis (reduced for memory efficiency)
+    active_fires = fetch_recent_fires_global(days_back=7, max_results=2000) if include_fires else []
+    
+    # Calculate total cells and adjust grid_resolution if needed to stay within limit
+    # This ensures cells remain contiguous (no gaps)
+    lat_range = bounds['north'] - bounds['south']
+    lon_range = bounds['east'] - bounds['west']
+    estimated_cells = (lat_range / grid_resolution) * (lon_range / grid_resolution)
+    
+    if estimated_cells > max_cells:
+        # Increase grid_resolution to reduce cell count while keeping cells contiguous
+        scale_factor = np.sqrt(estimated_cells / max_cells)
+        grid_resolution = grid_resolution * scale_factor
+    
+    # Spatial hashing: Group fires by grid region for O(1) lookup
+    # This reduces O(n*m) to O(n + m) complexity
+    fire_regions = {}
+    if active_fires:
+        for fire in active_fires:
+            # Map fire to grid region
+            fire_lat_idx = int(fire['lat'] / grid_resolution)
+            fire_lon_idx = int(fire['lon'] / grid_resolution)
+            region_key = (fire_lat_idx, fire_lon_idx)
+            
+            if region_key not in fire_regions:
+                fire_regions[region_key] = []
+            fire_regions[region_key].append(fire)
     
     features = []
     
-    # Generate grid cells
+    # Generate grid cells (now with adjusted resolution for contiguous coverage)
     latitudes = np.arange(bounds['south'], bounds['north'], grid_resolution)
     longitudes = np.arange(bounds['west'], bounds['east'], grid_resolution)
     
+    cell_count = 0
     for lat in latitudes:
+        if cell_count >= max_cells:
+            break
         for lon in longitudes:
-            # Find fires near this cell
+            if cell_count >= max_cells:
+                break
+            
+            # Find fires near this cell using spatial hashing (9-cell neighborhood)
             cell_center_lat = lat + grid_resolution / 2
             cell_center_lon = lon + grid_resolution / 2
             
-            nearby_fires = [
-                f for f in active_fires
-                if calculate_distance_km(
-                    cell_center_lat, cell_center_lon,
-                    f['lat'], f['lon']
-                ) <= RISK_LAYER_CONFIG['grid_resolution'] * 111  # ~111 km per degree
-            ]
+            # Get grid indices for this cell
+            cell_lat_idx = int(lat / grid_resolution)
+            cell_lon_idx = int(lon / grid_resolution)
+            
+            # Check current cell and 8 adjacent cells (3x3 neighborhood)
+            nearby_fires = []
+            max_search_distance_km = 300  # Maximum search radius in km
+            
+            for dlat in [-1, 0, 1]:
+                for dlon in [-1, 0, 1]:
+                    region_key = (cell_lat_idx + dlat, cell_lon_idx + dlon)
+                    if region_key in fire_regions:
+                        for fire in fire_regions[region_key]:
+                            distance = calculate_distance_km(
+                                cell_center_lat, cell_center_lon,
+                                fire['lat'], fire['lon']
+                            )
+                            if distance <= max_search_distance_km:
+                                nearby_fires.append(fire)
             
             # Compute risk
             risk_data = compute_grid_cell_risk(cell_center_lat, cell_center_lon, nearby_fires)
             
-            # Create feature
+            # Create feature (optimized: removed redundant fields to save memory)
             feature = {
                 'type': 'Feature',
                 'geometry': {
@@ -301,16 +347,11 @@ def generate_geojson_risk_layer(bounds: Dict = None,
                     'risk_color': RISK_LAYER_CONFIG['colors'][risk_data['risk_category']],
                     'fdi_risk': risk_data['components'].get('fdi_risk', 50),
                     'fire_proximity_risk': risk_data['components'].get('fire_proximity_risk', 0),
-                    'nearby_fires': risk_data['nearby_fire_count'],
-                    'closest_fire_km': float(risk_data['closest_fire_distance_km']) if risk_data['closest_fire_distance_km'] else None,
-                    'timestamp': risk_data['timestamp'],
-                    'center': {
-                        'lat': float(cell_center_lat),
-                        'lon': float(cell_center_lon)
-                    }
+                    'nearby_fires': risk_data['nearby_fire_count']
                 }
             }
             features.append(feature)
+            cell_count += 1
     
     return {
         'type': 'FeatureCollection',
