@@ -1392,6 +1392,178 @@ html.dark-mode .leaflet-control-zoom-out:hover {
     text-align: right;
 }
 
+/* ============================================
+   ENHANCED MAP CONTROLS AND CLUSTERING
+   ============================================ */
+
+/* Map controls overlay */
+.map-controls-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+}
+
+html.dark-mode .map-controls-overlay {
+    background: rgba(31, 41, 55, 0.95);
+}
+
+.map-control-group {
+    display: flex;
+    gap: 8px;
+    flex-direction: column;
+}
+
+.map-control-btn {
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    color: var(--text-dark);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.map-control-btn:hover {
+    background: var(--primary-red);
+    color: var(--white);
+    border-color: var(--primary-red);
+    transform: translateX(2px);
+}
+
+.map-control-btn.active {
+    background: var(--primary-red);
+    color: var(--white);
+    border-color: var(--primary-red);
+}
+
+.map-control-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.map-control-btn span {
+    font-size: 1rem;
+}
+
+/* Marker cluster styles */
+.marker-cluster-small {
+    background-color: rgba(255, 200, 0, 0.6);
+}
+
+.marker-cluster-small div {
+    background-color: rgba(255, 180, 0, 0.8);
+    color: #fff;
+    font-weight: bold;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+}
+
+.marker-cluster-medium {
+    background-color: rgba(255, 100, 0, 0.6);
+}
+
+.marker-cluster-medium div {
+    background-color: rgba(255, 80, 0, 0.8);
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+}
+
+.marker-cluster-large {
+    background-color: rgba(200, 0, 0, 0.6);
+}
+
+.marker-cluster-large div {
+    background-color: rgba(180, 0, 0, 0.8);
+    color: #fff;
+    font-weight: bold;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+}
+
+.marker-cluster {
+    border-radius: 50%;
+}
+
+/* Enhanced legend info */
+.legend-info {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-light);
+    font-size: 0.75rem;
+}
+
+/* Leaflet popup customization */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    padding: 0;
+}
+
+.leaflet-popup-content {
+    margin: 16px;
+}
+
+/* Fullscreen control styling */
+.leaflet-control-fullscreen a {
+    background: var(--bg-primary);
+    color: var(--text-dark);
+}
+
+html.dark-mode .leaflet-control-fullscreen a {
+    background: var(--bg-secondary);
+}
+
+/* Layer control enhancement */
+.leaflet-control-layers {
+    background: var(--bg-primary);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+}
+
+html.dark-mode .leaflet-control-layers {
+    background: var(--bg-secondary);
+    color: var(--text-dark);
+}
+
+html.dark-mode .leaflet-control-layers-toggle {
+    background-color: var(--bg-secondary);
+}
+
+/* Scale control dark mode */
+html.dark-mode .leaflet-control-scale-line {
+    background: rgba(31, 41, 55, 0.8);
+    border-color: var(--border-color);
+    color: var(--text-dark);
+}
+
 @media (max-width: 768px) {
     header h1 {
         font-size: 2rem;
@@ -1420,3 +1592,42 @@ html.dark-mode .leaflet-control-zoom-out:hover {
         width: 50px;
         height: 50px;
         font-size: 1.25rem;
+    }
+
+    /* Responsive map controls */
+    .map-controls-overlay {
+        top: 60px;
+        left: 5px;
+        padding: 6px;
+    }
+
+    .map-control-btn {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    .map-legend {
+        bottom: 10px;
+        right: 10px;
+        padding: 10px 12px;
+        min-width: 160px;
+    }
+
+    .legend-title {
+        font-size: 0.85rem;
+    }
+
+    .legend-info {
+        font-size: 0.7rem;
+    }
+
+    .fire-popup,
+    .risk-popup {
+        min-width: 200px;
+    }
+
+    .fire-popup-title,
+    .risk-popup-title {
+        font-size: 1rem;
+    }
+}

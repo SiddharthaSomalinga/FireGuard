@@ -93,13 +93,43 @@ Users can query the following fire science calculations via an integrated Prolog
 - Programmatic JSON outputs for integration with other systems.
 - Supports multi-area comparisons with priority ordering.
 
+## Live Fire Data
+
+FireGuard integrates real-time wildfire data from multiple sources:
+
+### ArcGIS Fire Data Integration
+
+- **NASA FIRMS**: Satellite-detected thermal hotspots with confidence levels
+- **ArcGIS NIFC Perimeters**: Active fire perimeter polygons with metadata
+- **ArcGIS USA Wildfires**: Comprehensive wildfire incident data
+- **MODIS Thermal Detection**: Recent thermal anomalies
+
+### Interactive Fire Map Features
+
+The main interface includes an interactive map showing:
+- Real-time fire locations across USA/Canada
+- Clustered markers for performance (automatically groups nearby fires)
+- Heat map visualization option
+- Detailed popups on click showing:
+  - **Fire Name & Type**: Incident identification
+  - **Acres Burned**: Total area affected
+  - **Percent Contained**: Containment status
+  - **Location**: County and state of origin
+  - **Casualties**: Residences destroyed, structures destroyed, fatalities, injuries
+  - **Fire Metrics**: Fire Radiative Power (FRP), brightness, confidence level
+  - **Status**: Cause, discovery date, last update
+  - **Personnel**: Incident management team size
+  - **Source**: Data provider attribution
+
+The system automatically fetches fires with impact data (destroyed structures, casualties) to ensure critical incidents are prominently displayed.
+
 ## Future Plans
 
 - Integrate live satellite and drone feeds to improve fire detection.
 - Expand to more granular local sensor data for vegetation and soil moisture.
 - Improve predictive accuracy with additional datasets.
-- Add real-time map visualization for multiple locations.
 - Implement user authentication and saved location history.
+- Add predictive fire spread modeling with wind patterns.
 
 ## Deployment
 
@@ -107,12 +137,14 @@ FireGuard is deployed as a unified Flask application on Render with Docker:
 
 - **Production URL**: [https://prolog-api.onrender.com](https://prolog-api.onrender.com)
 - **API Endpoints**:
-  - `GET /` - Web interface
+  - `GET /` - Web interface with live fire map
   - `GET /api/health` - Generic health check
   - `POST /api/analyze` - Fire risk analysis for coordinates
   - `POST /api/prolog/classify` - Direct Prolog classification with parameters
   - `GET /api/prolog/health` - Prolog service health check
   - `POST /api/chatbot` - Interactive chatbot queries
+  - `GET /api/arcgis/fires` - Live ArcGIS wildfire data (last 30 days)
+  - `GET /api/firms/recent` - NASA FIRMS active fire detections
 
 ### Architecture
 

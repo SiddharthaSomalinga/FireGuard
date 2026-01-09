@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import numpy as np
+from math import isnan
 from datetime import datetime
 from functools import lru_cache
 
@@ -19,11 +20,16 @@ from firms import (
     fetch_firms_fires,
     get_fires_geojson,
     fetch_recent_fires_global,
+    calculate_distance_km,
 )
 from risk_layer import (
     generate_geojson_risk_layer,
     get_risk_layer_summary,
     get_layer_configuration,
+)
+from arcgis_fires import (
+    fetch_all_arcgis_fires,
+    get_arcgis_fires_geojson,
 )
 
 
@@ -439,6 +445,107 @@ def get_recent_fires():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/arcgis/fires', methods=['GET'])
+def api_arcgis_fires():
+    """
+    Get fire data from ArcGIS services (no API key required).
+    Provides fire perimeters, active wildfires, and thermal hotspots.
+    Optimized for faster response times.
+    """
+    try:
+        days = int(request.args.get('days', 7))
+        include_hotspots = request.args.get('hotspots', 'true').lower() == 'true'
+        days = min(max(days, 1), 30)  # Allow up to 30 days to capture older perimeters/impacts
+        
+        # Limit hotspots to last 2 days for faster response
+        fire_data = fetch_all_arcgis_fires(
+            days_back=days, 
+            include_hotspots=include_hotspots
+        )
+        
+        # Filter out invalid coordinates before returning
+        valid_fires = []
+        for fire in fire_data['combined']:
+            if (fire and 
+                'lat' in fire and 'lon' in fire and
+                isinstance(fire['lat'], (int, float)) and 
+                isinstance(fire['lon'], (int, float)) and
+                not (isnan(fire['lat']) or isnan(fire['lon'])) and
+                -90 <= fire['lat'] <= 90 and
+                -180 <= fire['lon'] <= 180):
+                valid_fires.append(fire)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'fires': valid_fires,
+                'count': len(valid_fires),
+                'perimeters_count': len(fire_data['perimeters']),
+                'active_fires_count': len(fire_data['active_fires']),
+                'thermal_hotspots_count': len(fire_data['thermal_hotspots']),
+                'days_back': days,
+                'sources': fire_data['sources'],
+                'source': 'ArcGIS (NIFC, WFIGS, MODIS)'
+            }
+        })
+    except Exception as e:
+        import traceback
+        print(f"ArcGIS fires error: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/fires/combined', methods=['GET'])
+def api_fires_combined():
+    """
+    Get combined fire data from both NASA FIRMS and ArcGIS.
+    Provides the most comprehensive fire dataset.
+    """
+    try:
+        days = int(request.args.get('days', 7))
+        days = min(max(days, 1), 10)
+        
+        # Fetch from both sources
+        firms_fires = fetch_recent_fires_global(days_back=days, max_results=2000)
+        arcgis_data = fetch_all_arcgis_fires(days_back=days, include_hotspots=False)
+        
+        # Combine and deduplicate
+        all_fires = firms_fires + arcgis_data['combined']
+        
+        # Simple deduplication based on location proximity (within 1km)
+        deduplicated = []
+        for fire in all_fires:
+            is_duplicate = False
+            for existing in deduplicated:
+                if 'lat' in fire and 'lon' in fire and 'lat' in existing and 'lon' in existing:
+                    dist = calculate_distance_km(fire['lat'], fire['lon'], existing['lat'], existing['lon'])
+                    if dist < 1.0:  # Within 1km
+                        is_duplicate = True
+                        break
+            if not is_duplicate:
+                deduplicated.append(fire)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'fires': deduplicated,
+                'count': len(deduplicated),
+                'firms_count': len(firms_fires),
+                'arcgis_count': len(arcgis_data['combined']),
+                'days_back': days,
+                'sources': ['NASA FIRMS', 'ArcGIS NIFC', 'ArcGIS USA Wildfires']
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/firms/threat-analysis', methods=['POST'])

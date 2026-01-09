@@ -852,6 +852,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayFIRMSResults() { return; }
 
     let liveFirmsMapInstance = null;
+    let firmsMarkerCluster = null;
+    let firmsHeatLayer = null;
+    let firmsMarkerLayer = null;
+    let firmsCurrentView = 'cluster'; // 'cluster', 'markers', 'heat'
+    let firmsBaseLayers = {};
+    let firmsCurrentFires = [];
 
     function initializeLiveFirmsMap(fires) {
         const mapElement = document.getElementById('liveFirmsMap');
@@ -861,69 +867,291 @@ document.addEventListener('DOMContentLoaded', function() {
             liveFirmsMapInstance.remove();
         }
 
+        // Limit to top fires for performance (sort by FRP)
+        let displayFires = fires;
+        if (fires.length > 2000) {
+            console.log(`⚠️ Too many fires (${fires.length}), limiting to top 2000 by fire power...`);
+            displayFires = fires
+                .sort((a, b) => (b.frp || 0) - (a.frp || 0))
+                .slice(0, 2000);
+            console.log(`✅ Displaying ${displayFires.length} highest-intensity fires`);
+        }
+        
+        firmsCurrentFires = displayFires;
         const centerLat = 50.0;
         const centerLon = -100.0;
         const zoomLevel = 4;
 
-        liveFirmsMapInstance = L.map('liveFirmsMap').setView([centerLat, centerLon], zoomLevel);
+        liveFirmsMapInstance = L.map('liveFirmsMap', {
+            fullscreenControl: true,
+            fullscreenControlOptions: {
+                position: 'topleft'
+            }
+        }).setView([centerLat, centerLon], zoomLevel);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Add multiple base layers
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
-        }).addTo(liveFirmsMapInstance);
-
-        fires.forEach(fire => {
-            const color = getConfidenceColor(fire.confidence_level);
-
-            const fireIcon = L.divIcon({
-                className: 'fire-marker-icon',
-                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.3); box-shadow: 0 0 6px ${color}; animation: pulse 2s infinite;"></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            });
-
-            const popup = `
-                <div class="fire-popup">
-                    <div class="fire-popup-title">🔥 Fire Detection</div>
-                    <div class="fire-popup-item">
-                        <span class="fire-popup-label">Confidence:</span>
-                        <span class="fire-popup-value">${fire.confidence_level}</span>
-                    </div>
-                    <div class="fire-popup-item">
-                        <span class="fire-popup-label">Power:</span>
-                        <span class="fire-popup-value">${fire.frp.toFixed(0)} MW</span>
-                    </div>
-                    <div class="fire-popup-item">
-                        <span class="fire-popup-label">Date/Time:</span>
-                        <span class="fire-popup-value">${fire.acq_date} ${fire.acq_time}</span>
-                    </div>
-                    <div class="fire-popup-item">
-                        <span class="fire-popup-label">Satellite:</span>
-                        <span class="fire-popup-value">${fire.satellite}</span>
-                    </div>
-                </div>
-            `;
-
-            L.marker([fire.lat, fire.lon], { icon: fireIcon })
-                .bindPopup(popup)
-                .addTo(liveFirmsMapInstance);
         });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles © Esri',
+            maxZoom: 19
+        });
+
+        const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: 'Map data: © OpenStreetMap, SRTM | Map style: © OpenTopoMap',
+            maxZoom: 17
+        });
+
+        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap, © CartoDB',
+            maxZoom: 19
+        });
+
+        // Add default layer
+        osmLayer.addTo(liveFirmsMapInstance);
+
+        // Store base layers
+        firmsBaseLayers = {
+            "Street Map": osmLayer,
+            "Satellite": satelliteLayer,
+            "Topographic": topoLayer,
+            "Dark Mode": darkLayer
+        };
+
+        // Add layer control
+        L.control.layers(firmsBaseLayers, {}, { position: 'topright' }).addTo(liveFirmsMapInstance);
+
+        // Add scale control
+        L.control.scale({ imperial: true, metric: true }).addTo(liveFirmsMapInstance);
+
+        // Initialize clustering view (default)
+        updateFirmsView('cluster');
 
         if (fires.length > 0) {
             const bounds = L.latLngBounds(fires.map(fire => [fire.lat, fire.lon]));
             liveFirmsMapInstance.fitBounds(bounds, { padding: [50, 50] });
         }
 
+        // Setup control buttons
+        setupFirmsControls();
+
         if (!document.querySelector('style[data-pulse]')) {
             const style = document.createElement('style');
             style.setAttribute('data-pulse', 'true');
             style.textContent = `
                 @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.6; }
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.7; transform: scale(1.1); }
                 }
             `;
             document.head.appendChild(style);
+        }
+    }
+
+    function formatAcres(value) {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return 'N/A';
+        if (num < 1) return `${num.toFixed(2)} acres`;
+        return `${Math.round(num).toLocaleString('en-US')} acres`;
+    }
+
+    function formatPercent(value) {
+        const num = Number(value);
+        if (!Number.isFinite(num)) return 'N/A';
+        return `${Math.round(num)}%`;
+    }
+
+    function formatCount(value) {
+        if (value === 0) return '0';
+        return value ? `${value}` : 'N/A';
+    }
+
+    function formatDateTime(dateStr, timeStr) {
+        if (!dateStr && !timeStr) return 'Unknown';
+        if (dateStr && timeStr) return `${dateStr} ${timeStr}`;
+        return dateStr || timeStr || 'Unknown';
+    }
+
+    function buildFirePopup(fire) {
+        const fireName = fire.fire_name || 'Wildfire';
+        const typeLabel = (fire.fire_type || fire.type || 'Wildfire').toString().replace(/_/g, ' ');
+        const location = [fire.county, fire.state].filter(Boolean).join(', ') || 'Location unavailable';
+        const containment = formatPercent(fire.containment);
+        const acres = formatAcres(fire.acres);
+        const frp = Number.isFinite(Number(fire.frp)) ? `${Number(fire.frp).toFixed(1)} MW` : 'N/A';
+        const brightness = Number.isFinite(Number(fire.brightness)) ? `${Number(fire.brightness).toFixed(1)}K` : 'N/A';
+        const confidence = fire.confidence_level || 'unknown';
+        const source = fire.source || 'ArcGIS';
+        const discovered = fire.discovery_date || 'Unknown';
+        const updated = fire.update_time || fire.acq_date || 'Unknown';
+        const residences = formatCount(fire.residences_destroyed);
+        const structures = formatCount(fire.structures_destroyed);
+        const personnel = formatCount(fire.personnel);
+        const cause = fire.fire_cause || fire.status || 'Unknown';
+
+        return `
+            <div class="fire-popup">
+                <div class="fire-popup-title">${typeLabel.toUpperCase()}</div>
+                <div class="fire-popup-name">${fireName}</div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Acres Burned:</span><span class="fire-popup-value">${acres}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Percent Contained:</span><span class="fire-popup-value">${containment}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">County of Origin:</span><span class="fire-popup-value">${location}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Cause/Status:</span><span class="fire-popup-value">${cause}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Residences Destroyed:</span><span class="fire-popup-value">${residences}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Other Structures Destroyed:</span><span class="fire-popup-value">${structures}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Fire Power (FRP):</span><span class="fire-popup-value">${frp}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Brightness:</span><span class="fire-popup-value">${brightness}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Confidence:</span><span class="fire-popup-value">${confidence}</span></div>
+                <div class="fire-popup-item"><span class="fire-popup-label">Source:</span><span class="fire-popup-value">${source}</span></div>
+                <div class="fire-popup-meta">Discovered: ${discovered}</div>
+                <div class="fire-popup-meta">Current as of: ${formatDateTime(updated, fire.acq_time)}</div>
+            </div>
+        `;
+    }
+
+    function createFireMarker(fire) {
+        // Validate required fields
+        if (!fire || typeof fire.lat !== 'number' || typeof fire.lon !== 'number') {
+            console.warn('Invalid fire data:', fire);
+            return null;
+        }
+        
+        const confidenceLevel = fire.confidence_level || 'nominal';
+        const color = getConfidenceColor(confidenceLevel);
+        const frpValue = Number.isFinite(Number(fire.frp)) ? Number(fire.frp) : 50;
+        const size = Math.min(Math.max(frpValue / 100 * 12, 8), 20);
+
+        const fireIcon = L.divIcon({
+            className: 'fire-marker-icon',
+            html: `<div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.4); box-shadow: 0 0 10px ${color}; animation: pulse 2s infinite;"></div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
+        });
+
+        const marker = L.marker([fire.lat, fire.lon], { icon: fireIcon });
+        marker.bindPopup(buildFirePopup(fire));
+        return marker;
+    }
+
+    function updateFirmsView(viewType) {
+        if (!liveFirmsMapInstance) return;
+
+        // Clear existing layers
+        if (firmsMarkerCluster) {
+            liveFirmsMapInstance.removeLayer(firmsMarkerCluster);
+            firmsMarkerCluster = null;
+        }
+        if (firmsHeatLayer) {
+            liveFirmsMapInstance.removeLayer(firmsHeatLayer);
+            firmsHeatLayer = null;
+        }
+        if (firmsMarkerLayer) {
+            liveFirmsMapInstance.removeLayer(firmsMarkerLayer);
+            firmsMarkerLayer = null;
+        }
+
+        firmsCurrentView = viewType;
+
+        if (viewType === 'cluster') {
+            // Clustered markers view with performance optimization
+            const clusterRadius = firmsCurrentFires.length > 1000 ? 120 : 80;
+            firmsMarkerCluster = L.markerClusterGroup({
+                maxClusterRadius: clusterRadius,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false, // Disable for performance
+                zoomToBoundsOnClick: true,
+                disableClusteringAtZoom: 15,
+                chunkedLoading: true, // Enable chunked loading for better performance
+                chunkInterval: 200,
+                chunkDelay: 50,
+                iconCreateFunction: function(cluster) {
+                    const count = cluster.getChildCount();
+                    let size = 'small';
+                    if (count > 100) size = 'large';
+                    else if (count > 20) size = 'medium';
+
+                    return L.divIcon({
+                        html: `<div><span>${count}</span></div>`,
+                        className: 'marker-cluster marker-cluster-' + size,
+                        iconSize: L.point(40, 40)
+                    });
+                }
+            });
+
+            console.log(`📍 Creating ${firmsCurrentFires.length} markers...`);
+            let addedCount = 0;
+            firmsCurrentFires.forEach(fire => {
+                const marker = createFireMarker(fire);
+                if (marker) {
+                    firmsMarkerCluster.addLayer(marker);
+                    addedCount++;
+                }
+            });
+            console.log(`✅ Added ${addedCount} markers to cluster`);
+            
+
+            console.log('🗺️ Adding cluster layer to map...');
+            liveFirmsMapInstance.addLayer(firmsMarkerCluster);
+            console.log('✅ Cluster layer added successfully!');
+        } else if (viewType === 'heat') {
+            // Heat map view
+            const heatData = firmsCurrentFires.map(fire => {
+                // Weight by FRP (Fire Radiative Power)
+                const weight = Math.min(fire.frp / 500, 1);
+                return [fire.lat, fire.lon, weight];
+            });
+
+            firmsHeatLayer = L.heatLayer(heatData, {
+                radius: 25,
+                blur: 35,
+                maxZoom: 10,
+                max: 1.0,
+                gradient: {
+                    0.0: '#FFFF00',
+                    0.3: '#FFA500',
+                    0.6: '#FF4500',
+                    0.8: '#FF0000',
+                    1.0: '#8B0000'
+                }
+            });
+
+            liveFirmsMapInstance.addLayer(firmsHeatLayer);
+        }
+    }
+
+    function setupFirmsControls() {
+        const clusterBtn = document.getElementById('firmsClusterBtn');
+        const heatBtn = document.getElementById('firmsHeatBtn');
+        const refreshBtn = document.getElementById('firmsRefreshBtn');
+
+        if (clusterBtn) {
+            clusterBtn.addEventListener('click', function() {
+                updateFirmsView('cluster');
+                clusterBtn.classList.add('active');
+                heatBtn.classList.remove('active');
+            });
+        }
+
+        if (heatBtn) {
+            heatBtn.addEventListener('click', function() {
+                updateFirmsView('heat');
+                heatBtn.classList.add('active');
+                clusterBtn.classList.remove('active');
+            });
+        }
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                refreshBtn.disabled = true;
+                refreshBtn.innerHTML = '<span>⏳</span> Loading...';
+                fetchLiveWildfires().finally(() => {
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = '<span>🔄</span> Refresh';
+                });
+            });
         }
     }
 
@@ -939,14 +1167,74 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             liveFirmsMapContainer.style.display = 'block';
-            liveFirmsContent.innerHTML = '<div class="firms-loading">Loading live wildfire data from NASA FIRMS...</div>';
+            liveFirmsContent.innerHTML = '<div class="firms-loading">Loading live wildfire data from ArcGIS...</div>';
 
-            const resp = await fetch('/api/firms/recent?days=7&max=2000');
-            if (!resp.ok) throw new Error('Failed to fetch recent fires');
-            const json = await resp.json();
+            // Try ArcGIS first (better data, no API key needed)
+            let fires = [];
+            let dataSource = 'ArcGIS';
             
-            if (json.success && json.data) {
-                const fires = json.data.fires || [];
+            try {
+                // Add timeout to prevent hanging (30 seconds)
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                
+                const arcgisResp = await fetch('/api/arcgis/fires?days=30&hotspots=true', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (arcgisResp.ok) {
+                    const arcgisJson = await arcgisResp.json();
+                    if (arcgisJson.success && arcgisJson.data && arcgisJson.data.fires) {
+                        fires = arcgisJson.data.fires;
+                        // Filter out fires with invalid coordinates
+                        fires = fires.filter(fire => 
+                            fire && 
+                            typeof fire.lat === 'number' && 
+                            typeof fire.lon === 'number' &&
+                            !isNaN(fire.lat) && 
+                            !isNaN(fire.lon) &&
+                            fire.lat >= -90 && fire.lat <= 90 &&
+                            fire.lon >= -180 && fire.lon <= 180
+                        );
+                        dataSource = arcgisJson.data.sources ? arcgisJson.data.sources.join(', ') : 'ArcGIS';
+                        console.log(`✅ Loaded ${fires.length} valid fires from ArcGIS (filtered invalid coordinates)`);
+                    } else {
+                        console.warn('⚠️ ArcGIS returned no fire data');
+                    }
+                } else {
+                    console.warn(`⚠️ ArcGIS request failed with status: ${arcgisResp.status}`);
+                }
+            } catch (arcgisErr) {
+                if (arcgisErr.name === 'AbortError') {
+                    console.warn('⚠️ ArcGIS fetch timed out after 30s, trying FIRMS...');
+                } else {
+                    console.warn('⚠️ ArcGIS fetch failed, trying FIRMS:', arcgisErr);
+                }
+            }
+            
+            // Fallback to FIRMS if ArcGIS fails or returns no data
+            if (fires.length === 0) {
+                liveFirmsContent.innerHTML = '<div class="firms-loading">ArcGIS returned no data, trying NASA FIRMS...</div>';
+                try {
+                    const firmsResp = await fetch('/api/firms/recent?days=7&max=2000');
+                    if (firmsResp.ok) {
+                        const firmsJson = await firmsResp.json();
+                        if (firmsJson.success && firmsJson.data && firmsJson.data.fires) {
+                            fires = firmsJson.data.fires;
+                            dataSource = 'NASA FIRMS';
+                            console.log(`✅ Loaded ${fires.length} fires from FIRMS`);
+                        }
+                    }
+                } catch (firmsErr) {
+                    console.error('❌ FIRMS fetch also failed:', firmsErr);
+                }
+            }
+            
+            if (fires && fires.length > 0) {
+                console.log(`✅ Successfully loaded ${fires.length} fires from ${dataSource}`);
+                console.log('Sample fire data:', fires[0]);
+                console.log('First 5 fires coordinates:', fires.slice(0, 5).map(f => ({lat: f.lat, lon: f.lon})));
                 
                 // Update content with fire count
                 liveFirmsContent.innerHTML = `
@@ -954,21 +1242,46 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="firms-status-icon">🔥</div>
                         <div class="firms-status-text">
                             <div class="firms-status-title">${fires.length} Active Wildfires Detected</div>
-                            <div class="firms-status-desc">Live satellite data from NASA FIRMS (last 7 days)</div>
+                            <div class="firms-status-desc">Live data from ${dataSource} (last 7 days)</div>
                         </div>
                     </div>
                 `;
                 
-                // Initialize map with all fires
-                setTimeout(() => {
-                    initializeLiveFirmsMap(fires);
-                }, 100);
+                // Initialize map with all fires (ensure map container is ready)
+                if (document.getElementById('liveFirmsMap')) {
+                    setTimeout(() => {
+                        console.log('🗺️ Initializing map with', fires.length, 'fires...');
+                        try {
+                            initializeLiveFirmsMap(fires);
+                            console.log('✅ Map initialized successfully');
+                        } catch (mapErr) {
+                            console.error('❌ Error initializing map:', mapErr);
+                            liveFirmsContent.innerHTML = `
+                                <div class="firms-no-data">
+                                    <p>Error displaying fires on map. Data loaded but visualization failed.</p>
+                                    <p style="margin-top: 8px; font-size: 0.9em; color: var(--text-light);">
+                                        ${fires.length} fires were loaded successfully.
+                                    </p>
+                                </div>
+                            `;
+                        }
+                    }, 200);
+                } else {
+                    console.error('❌ Map container not found!');
+                }
             } else {
-                liveFirmsContent.innerHTML = '<div class="firms-no-data">No recent FIRMS data available</div>';
+                liveFirmsContent.innerHTML = `
+                    <div class="firms-no-data">
+                        <p>No recent wildfire data available from any source.</p>
+                        <p style="margin-top: 8px; font-size: 0.9em; color: var(--text-light);">
+                            This may indicate good fire conditions or temporary data unavailability.
+                        </p>
+                    </div>
+                `;
             }
         } catch (err) {
-            console.error('Error fetching live wildfires:', err);
-            liveFirmsContent.innerHTML = '<div class="firms-no-data">Unable to load satellite fire data. Please try again later.</div>';
+            console.error('❌ Error fetching live wildfires:', err);
+            liveFirmsContent.innerHTML = '<div class="firms-no-data">Unable to load wildfire data. Please try again later.</div>';
         }
     }
 
@@ -1006,6 +1319,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // ============= Risk Layer Functions =============
     
     let riskLayerMapInstance = null;
+    let riskHeatLayer = null;
+    let riskGeoJSONLayer = null;
+    let riskCurrentView = 'grid'; // 'grid' or 'heat'
+    let riskBaseLayers = {};
+    let riskCurrentData = null;
     
     function initializeRiskLayerMap(geojson) {
         const mapElement = document.getElementById('riskLayerMap');
@@ -1015,70 +1333,208 @@ document.addEventListener('DOMContentLoaded', function() {
             riskLayerMapInstance.remove();
         }
         
+        riskCurrentData = geojson;
         const centerLat = 45.0;
         const centerLon = -100.0;
         const zoomLevel = 4;
         
-        riskLayerMapInstance = L.map('riskLayerMap').setView([centerLat, centerLon], zoomLevel);
+        riskLayerMapInstance = L.map('riskLayerMap', {
+            fullscreenControl: true,
+            fullscreenControlOptions: {
+                position: 'topleft'
+            }
+        }).setView([centerLat, centerLon], zoomLevel);
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Add multiple base layers
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
-        }).addTo(riskLayerMapInstance);
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles © Esri',
+            maxZoom: 19
+        });
+
+        const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: 'Map data: © OpenStreetMap, SRTM | Map style: © OpenTopoMap',
+            maxZoom: 17
+        });
+
+        // Add default layer
+        osmLayer.addTo(riskLayerMapInstance);
+
+        // Store base layers
+        riskBaseLayers = {
+            "Street Map": osmLayer,
+            "Satellite": satelliteLayer,
+            "Topographic": topoLayer
+        };
+
+        // Add layer control
+        L.control.layers(riskBaseLayers, {}, { position: 'topright' }).addTo(riskLayerMapInstance);
+
+        // Add scale control
+        L.control.scale({ imperial: true, metric: true }).addTo(riskLayerMapInstance);
         
-        // Add GeoJSON features to map
-        if (geojson && geojson.features) {
-            geojson.features.forEach(feature => {
-                const props = feature.properties;
-                const riskScore = props.risk_score || 50;
-                const riskCategory = props.risk_category || 'moderate';
-                const color = props.risk_color || '#FFA500';
-                
-                // Create polygon layer
-                L.geoJSON(feature, {
-                    style: {
-                        fillColor: color,
-                        weight: 1,
-                        opacity: 0.7,
-                        color: '#333',
-                        dashArray: '3',
-                        fillOpacity: 0.6
+        // Initialize grid view (default)
+        updateRiskView('grid');
+
+        // Setup control buttons
+        setupRiskControls();
+    }
+
+    function updateRiskView(viewType) {
+        if (!riskLayerMapInstance || !riskCurrentData) return;
+
+        // Clear existing layers
+        if (riskGeoJSONLayer) {
+            riskLayerMapInstance.removeLayer(riskGeoJSONLayer);
+            riskGeoJSONLayer = null;
+        }
+        if (riskHeatLayer) {
+            riskLayerMapInstance.removeLayer(riskHeatLayer);
+            riskHeatLayer = null;
+        }
+
+        riskCurrentView = viewType;
+
+        if (viewType === 'grid') {
+            // Grid view with polygons
+            if (riskCurrentData.features) {
+                riskGeoJSONLayer = L.geoJSON(riskCurrentData, {
+                    style: function(feature) {
+                        const props = feature.properties;
+                        const color = props.risk_color || '#FFA500';
+                        return {
+                            fillColor: color,
+                            weight: 1,
+                            opacity: 0.7,
+                            color: '#333',
+                            dashArray: '3',
+                            fillOpacity: 0.5
+                        };
                     },
-                    onEachFeature: (feature, layer) => {
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties;
+                        const riskScore = props.risk_score || 50;
+                        const riskCategory = props.risk_category || 'moderate';
+
                         const popup = `
                             <div class="risk-popup">
-                                <div class="risk-popup-title">📊 Risk Assessment</div>
+                                <div class="risk-popup-title">📊 Wildfire Risk Assessment</div>
                                 <div class="risk-popup-item">
-                                    <span class="risk-popup-label">Risk Score:</span>
-                                    <span class="risk-popup-value">${riskScore.toFixed(1)}/100</span>
+                                    <span class="risk-popup-label">Overall Risk Score:</span>
+                                    <span class="risk-popup-value"><strong>${riskScore.toFixed(1)}/100</strong></span>
                                 </div>
                                 <div class="risk-popup-item">
-                                    <span class="risk-popup-label">Category:</span>
-                                    <span class="risk-popup-value">${riskCategory}</span>
+                                    <span class="risk-popup-label">Risk Category:</span>
+                                    <span class="risk-popup-value"><span class="badge badge-${riskCategory}">${riskCategory}</span></span>
                                 </div>
+                                <div class="risk-popup-divider"></div>
+                                <div class="risk-popup-subtitle">Risk Components</div>
                                 <div class="risk-popup-item">
                                     <span class="risk-popup-label">FDI Risk:</span>
                                     <span class="risk-popup-value">${props.fdi_risk.toFixed(1)}</span>
                                 </div>
                                 <div class="risk-popup-item">
-                                    <span class="risk-popup-label">Fire Proximity:</span>
+                                    <span class="risk-popup-label">Fire Proximity Risk:</span>
                                     <span class="risk-popup-value">${props.fire_proximity_risk.toFixed(1)}</span>
                                 </div>
                                 ${props.closest_fire_km ? `
                                 <div class="risk-popup-item">
-                                    <span class="risk-popup-label">Closest Fire:</span>
-                                    <span class="risk-popup-value">${props.closest_fire_km.toFixed(1)} km</span>
+                                    <span class="risk-popup-label">Closest Active Fire:</span>
+                                    <span class="risk-popup-value">${props.closest_fire_km.toFixed(1)} km away</span>
                                 </div>
                                 ` : ''}
                                 <div class="risk-popup-item">
-                                    <span class="risk-popup-label">Nearby Fires:</span>
-                                    <span class="risk-popup-value">${props.nearby_fires}</span>
+                                    <span class="risk-popup-label">Active Fires Nearby:</span>
+                                    <span class="risk-popup-value">${props.nearby_fires} detected</span>
                                 </div>
                             </div>
                         `;
                         layer.bindPopup(popup);
+
+                        // Add hover effect
+                        layer.on('mouseover', function(e) {
+                            const layer = e.target;
+                            layer.setStyle({
+                                weight: 3,
+                                fillOpacity: 0.7
+                            });
+                        });
+
+                        layer.on('mouseout', function(e) {
+                            riskGeoJSONLayer.resetStyle(e.target);
+                        });
                     }
-                }).addTo(riskLayerMapInstance);
+                });
+
+                riskLayerMapInstance.addLayer(riskGeoJSONLayer);
+            }
+        } else if (viewType === 'heat') {
+            // Heat map view
+            const heatData = [];
+            if (riskCurrentData.features) {
+                riskCurrentData.features.forEach(feature => {
+                    const coords = feature.geometry.coordinates[0];
+                    // Get center of polygon
+                    let sumLat = 0, sumLon = 0;
+                    coords.forEach(coord => {
+                        sumLon += coord[0];
+                        sumLat += coord[1];
+                    });
+                    const centerLon = sumLon / coords.length;
+                    const centerLat = sumLat / coords.length;
+
+                    const intensity = feature.properties.risk_score / 100;
+                    heatData.push([centerLat, centerLon, intensity]);
+                });
+            }
+
+            riskHeatLayer = L.heatLayer(heatData, {
+                radius: 50,
+                blur: 60,
+                maxZoom: 8,
+                max: 1.0,
+                gradient: {
+                    0.0: '#90EE90',
+                    0.2: '#FFFF00',
+                    0.4: '#FFA500',
+                    0.6: '#FF0000',
+                    0.8: '#8B0000',
+                    1.0: '#4B0000'
+                }
+            });
+
+            riskLayerMapInstance.addLayer(riskHeatLayer);
+        }
+    }
+
+    function setupRiskControls() {
+        const viewBtn = document.getElementById('riskLayerViewBtn');
+        const refreshBtn = document.getElementById('riskRefreshBtn');
+
+        if (viewBtn) {
+            viewBtn.addEventListener('click', function() {
+                if (riskCurrentView === 'grid') {
+                    updateRiskView('heat');
+                    viewBtn.classList.add('active');
+                } else {
+                    updateRiskView('grid');
+                    viewBtn.classList.remove('active');
+                }
+            });
+        }
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                refreshBtn.disabled = true;
+                refreshBtn.innerHTML = '<span>⏳</span> Loading...';
+                fetchAndDisplayRiskLayer().finally(() => {
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = '<span>🔄</span> Refresh';
+                });
             });
         }
     }
@@ -1131,6 +1587,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize risk layer on page load
     try {
         fetchAndDisplayRiskLayer();
+        // Auto-refresh every 15 minutes
+        setInterval(() => {
+            console.log('Auto-refreshing risk layer data...');
+            fetchAndDisplayRiskLayer();
+        }, 15 * 60 * 1000);
     } catch (e) {
         console.warn('Failed to initialize risk layer map:', e);
     }
@@ -1138,6 +1599,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize live wildfires map on page load
     try {
         fetchLiveWildfires();
+        // Auto-refresh every 10 minutes
+        setInterval(() => {
+            console.log('Auto-refreshing live wildfire data...');
+            fetchLiveWildfires();
+        }, 10 * 60 * 1000);
     } catch (e) {
         console.warn('Failed to initialize live wildfires map:', e);
     }

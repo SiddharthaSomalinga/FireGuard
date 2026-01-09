@@ -8,6 +8,25 @@
     <!-- Leaflet Map -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <!-- Leaflet Plugins for Advanced Features -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <!-- Leaflet Heat Map -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+    <!-- Leaflet Draw (for perimeters) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    
+    <!-- Leaflet Fullscreen -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.css" />
+    <script src="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.js"></script>
+    
+    <!-- Esri Leaflet for ArcGIS layers -->
+    <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
 </head>
 <body>
     <div class="container">
@@ -32,6 +51,16 @@
                 </div>
                 <div id="riskLayerMapContainer" class="risk-layer-map-container" style="display: block;">
                     <div id="riskLayerMap" class="risk-layer-map"></div>
+                    <div class="map-controls-overlay">
+                        <div class="map-control-group">
+                            <button id="riskLayerViewBtn" class="map-control-btn" title="Toggle Heat Map View">
+                                <span>🔥</span> Heat Map
+                            </button>
+                            <button id="riskRefreshBtn" class="map-control-btn" title="Refresh Data">
+                                <span>🔄</span> Refresh
+                            </button>
+                        </div>
+                    </div>
                     <div class="risk-layer-legend">
                         <div class="legend-title">Risk Category</div>
                         <div class="legend-item">
@@ -66,7 +95,21 @@
                 </div>
                 <div id="liveFirmsMapContainer" class="firms-map-container" style="display: block;">
                     <div id="liveFirmsMap" class="firms-map"></div>
+                    <div class="map-controls-overlay">
+                        <div class="map-control-group">
+                            <button id="firmsClusterBtn" class="map-control-btn active" title="Toggle Clustering">
+                                <span>📍</span> Clustering
+                            </button>
+                            <button id="firmsHeatBtn" class="map-control-btn" title="Toggle Heat Map">
+                                <span>🔥</span> Heat Map
+                            </button>
+                            <button id="firmsRefreshBtn" class="map-control-btn" title="Refresh Data">
+                                <span>🔄</span> Refresh
+                            </button>
+                        </div>
+                    </div>
                     <div class="map-legend">
+                        <div class="legend-title">Fire Confidence & Intensity</div>
                         <div class="legend-item">
                             <span class="legend-marker" style="background-color: #FF0000;"></span>
                             <span>High Confidence</span>
@@ -78,6 +121,9 @@
                         <div class="legend-item">
                             <span class="legend-marker" style="background-color: #FFFF00;"></span>
                             <span>Low Confidence</span>
+                        </div>
+                        <div class="legend-info">
+                            <small>💡 Click clusters to zoom in • Hover for details</small>
                         </div>
                     </div>
                 </div>
