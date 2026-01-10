@@ -1299,6 +1299,54 @@ html.dark-mode .risk-layer-legend {
     color: var(--text-dark);
 }
 
+.legend-columns {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.legend-column {
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.legend-subtitle {
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0.25rem;
+}
+
+.combined-status-row {
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    margin-bottom: 0.35rem;
+}
+
+.combined-status-row strong {
+    color: var(--primary-red);
+    margin-right: 0.35rem;
+}
+
+.combined-map-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+}
+
+#combinedMapContainer {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+#combinedMap {
+    border-radius: 0;
+}
+
 .legend-marker {
     width: 14px;
     height: 14px;

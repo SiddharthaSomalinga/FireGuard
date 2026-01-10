@@ -43,87 +43,71 @@
         </header>
 
         <main>
-            <!-- Geospatial Risk Layer Map Section -->
-            <div class="detail-card risk-layer-card" id="riskLayerCard" style="display: block; margin-bottom: 2rem;">
-                <h3>🗺️ Geospatial Wildfire Risk Layer</h3>
-                <div class="detail-content" id="riskLayerContent">
-                    <p>Pre-rendered deterministic risk assessment grid covering USA & Canada</p>
+            <!-- Unified Wildfire + Risk Map Section -->
+            <div class="detail-card combined-map-card" id="combinedMapCard" style="display: block; margin-bottom: 2rem;">
+                <h3>🛰️ Unified Wildfire &amp; Risk Map</h3>
+                <div class="detail-content" id="combinedMapContent">
+                    <p>Live active fires overlaid on the predictive risk layer for USA &amp; Canada.</p>
                 </div>
-                <div id="riskLayerMapContainer" class="risk-layer-map-container" style="display: block;">
-                    <div id="riskLayerMap" class="risk-layer-map"></div>
+                <div id="combinedMapContainer" class="risk-layer-map-container" style="display: block;">
+                    <div id="combinedMap" class="risk-layer-map"></div>
                     <div class="map-controls-overlay">
                         <div class="map-control-group">
-                            <button id="riskLayerViewBtn" class="map-control-btn" title="Toggle Heat Map View">
-                                <span>🔥</span> Heat Map
+                            <button id="riskLayerToggleBtn" class="map-control-btn" title="Toggle risk layer view">
+                                <span>🗺️</span> Risk: Grid / Heat
                             </button>
-                            <button id="riskRefreshBtn" class="map-control-btn" title="Refresh Data">
+                            <button id="fireLayerToggleBtn" class="map-control-btn active" title="Toggle fire view">
+                                <span>🔥</span> Fires: Cluster / Heat
+                            </button>
+                            <button id="combinedRefreshBtn" class="map-control-btn" title="Refresh both layers">
                                 <span>🔄</span> Refresh
                             </button>
                         </div>
                     </div>
-                    <div class="risk-layer-legend">
-                        <div class="legend-title">Risk Category</div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #8B0000;"></span>
-                            <span>Critical (80+)</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #FF0000;"></span>
-                            <span>High (60-79)</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #FFA500;"></span>
-                            <span>Moderate (40-59)</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #FFFF00;"></span>
-                            <span>Low (20-39)</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #90EE90;"></span>
-                            <span>Minimal (&lt;20)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Live Wildfire Map Section -->
-            <div class="detail-card firms-card" id="liveFirmsCard" style="display: block; margin-bottom: 2rem;">
-                <h3>🛰️ Live Wildfires in USA/Canada</h3>
-                <div class="detail-content" id="liveFirmsContent">
-                    <div class="firms-loading">Loading live wildfire data...</div>
-                </div>
-                <div id="liveFirmsMapContainer" class="firms-map-container" style="display: block;">
-                    <div id="liveFirmsMap" class="firms-map"></div>
-                    <div class="map-controls-overlay">
-                        <div class="map-control-group">
-                            <button id="firmsClusterBtn" class="map-control-btn active" title="Toggle Clustering">
-                                <span>📍</span> Clustering
-                            </button>
-                            <button id="firmsHeatBtn" class="map-control-btn" title="Toggle Heat Map">
-                                <span>🔥</span> Heat Map
-                            </button>
-                            <button id="firmsRefreshBtn" class="map-control-btn" title="Refresh Data">
-                                <span>🔄</span> Refresh
-                            </button>
-                        </div>
-                    </div>
-                    <div class="map-legend">
-                        <div class="legend-title">Fire Confidence & Intensity</div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #FF0000;"></span>
-                            <span>High Confidence</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #FFA500;"></span>
-                            <span>Nominal Confidence</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-marker" style="background-color: #FFFF00;"></span>
-                            <span>Low Confidence</span>
+                    <div class="map-legend combined-legend">
+                        <div class="legend-title">Legend</div>
+                        <div class="legend-columns">
+                            <div class="legend-column">
+                                <div class="legend-subtitle">Fire Confidence</div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #FF0000;"></span>
+                                    <span>High Confidence</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #FFA500;"></span>
+                                    <span>Nominal Confidence</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #FFFF00;"></span>
+                                    <span>Low Confidence</span>
+                                </div>
+                            </div>
+                            <div class="legend-column">
+                                <div class="legend-subtitle">Risk Category</div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #8B0000;"></span>
+                                    <span>Critical</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #FF0000;"></span>
+                                    <span>High</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #FFA500;"></span>
+                                    <span>Moderate</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #FFFF00;"></span>
+                                    <span>Low</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-marker" style="background-color: #90EE90;"></span>
+                                    <span>Minimal</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="legend-info">
-                            <small>💡 Click clusters to zoom in • Hover for details</small>
+                            <small>💡 Risk palette is softened so active fire markers stay visible.</small>
                         </div>
                     </div>
                 </div>

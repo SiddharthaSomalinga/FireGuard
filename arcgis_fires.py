@@ -15,6 +15,29 @@ from typing import Dict, List, Optional
 from math import radians, cos, sin, asin, sqrt
 
 
+def _normalize_arcgis_timestamp(value: Optional[object]) -> str:
+    """Convert ArcGIS millisecond timestamps to ISO string; return original if unknown."""
+    if value is None:
+        return ''
+    # Already ISO-like
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.isdigit() and len(stripped) >= 12:
+            try:
+                ms = int(stripped)
+                return datetime.utcfromtimestamp(ms / 1000).isoformat() + 'Z'
+            except Exception:
+                return value
+        return value
+    # Numeric epoch millis
+    try:
+        if isinstance(value, (int, float)) and value > 1e11:
+            return datetime.utcfromtimestamp(float(value) / 1000).isoformat() + 'Z'
+    except Exception:
+        pass
+    return str(value)
+
+
 # Public ArcGIS wildfire service endpoints (no API key required)
 ARCGIS_SERVICES = {
     'nifc_perimeters': {
@@ -47,69 +70,78 @@ def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
 
 def fetch_arcgis_fire_perimeters(days_back: int = 7) -> List[Dict]:
     """
-    Fetch current wildfire perimeters from ArcGIS/NIFC.
-    Returns fire perimeter polygons with metadata.
+    Fetch current wildfire perimeters from ArcGIS/NIFC with a resilient fallback.
+    Switch to JSON (not GeoJSON) to avoid 400s and retry the alternate layer if needed.
     """
-    try:
-        # Calculate date filter for recent fires
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
-        
-        # Query parameters for NIFC fire perimeters
+    def request_perimeters(url: str, start_date: datetime) -> List[Dict]:
         params = {
             'where': f"CreateDate >= timestamp '{start_date.strftime('%Y-%m-%d 00:00:00')}'",
             'outFields': '*',
             'returnGeometry': 'true',
-            'f': 'geojson',
-            'resultRecordCount': 1000
+            'outSR': 4326,
+            'f': 'json',  # GeoJSON intermittently 400s; json is stable
+            'resultRecordCount': 2000,
+            'resultOffset': 0
         }
-        
-        response = requests.get(
-            ARCGIS_SERVICES['nifc_perimeters']['url'],
-            params=params,
-            timeout=30
-        )
-        response.raise_for_status()
-        
-        geojson_data = response.json()
-        fires = []
-        
-        if 'features' in geojson_data:
-            for feature in geojson_data['features']:
-                props = feature.get('properties', {})
-                geometry = feature.get('geometry', {})
-                
-                # Extract fire information
-                fire_info = {
-                    'fire_name': props.get('IncidentName', props.get('FIRE_NAME', 'Unknown Fire')),
-                    'acres': props.get('GISAcres', props.get('ACRES', 0)),
-                    'containment': props.get('PercentContained', props.get('CONTAINMENT', 0)),
-                    'discovery_date': props.get('FireDiscoveryDateTime', props.get('DISCOVERY_DATE', '')),
-                    'fire_type': props.get('IncidentTypeCategory', 'Wildfire'),
-                    'status': props.get('FireCause', 'Active'),
-                    'state': props.get('POOState', ''),
-                    'county': props.get('POOCounty', ''),
-                    'residences_destroyed': props.get('ResidencesDestroyed', props.get('Residences', 0)),
-                    'structures_destroyed': props.get('OtherStructuresDestroyed', props.get('StructuresDestroyed', 0)),
-                    'update_time': props.get('ModifiedOn', ''),
-                    'geometry': geometry,
-                    'source': 'ArcGIS NIFC'
-                }
-                
-                # Calculate center point for the perimeter
-                if geometry.get('type') == 'Polygon' and geometry.get('coordinates'):
-                    coords = geometry['coordinates'][0]
-                    if coords:
-                        # Simple centroid calculation
-                        lons = [c[0] for c in coords]
-                        lats = [c[1] for c in coords]
-                        fire_info['lat'] = sum(lats) / len(lats)
-                        fire_info['lon'] = sum(lons) / len(lons)
-                
-                fires.append(fire_info)
-        
-        return fires
-        
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        features = data.get('features', [])
+        perims: List[Dict] = []
+
+        for feature in features:
+            attrs = feature.get('attributes', {})
+            geometry = feature.get('geometry', {}) or {}
+
+            fire_info = {
+                'fire_name': attrs.get('IncidentName', attrs.get('FIRE_NAME', 'Unknown Fire')),
+                'acres': attrs.get('GISAcres', attrs.get('ACRES', 0)),
+                'containment': attrs.get('PercentContained', attrs.get('CONTAINMENT', 0)),
+                'discovery_date': _normalize_arcgis_timestamp(attrs.get('FireDiscoveryDateTime', attrs.get('DISCOVERY_DATE', ''))),
+                'fire_type': attrs.get('IncidentTypeCategory', 'Wildfire'),
+                'status': attrs.get('FireCause', 'Active'),
+                'state': attrs.get('POOState', ''),
+                'county': attrs.get('POOCounty', ''),
+                'residences_destroyed': attrs.get('ResidencesDestroyed', attrs.get('Residences', 0)),
+                'structures_destroyed': attrs.get('OtherStructuresDestroyed', attrs.get('StructuresDestroyed', 0)),
+                'update_time': _normalize_arcgis_timestamp(attrs.get('ModifiedOn', '')),
+                'geometry': geometry,
+                'source': 'ArcGIS NIFC'
+            }
+
+            # Calculate centroid from rings if present
+            rings = geometry.get('rings')
+            if rings and len(rings) > 0:
+                coords = rings[0]
+                if coords:
+                    lons = [c[0] for c in coords]
+                    lats = [c[1] for c in coords]
+                    fire_info['lat'] = sum(lats) / len(lats)
+                    fire_info['lon'] = sum(lons) / len(lons)
+
+            perims.append(fire_info)
+
+        return perims
+
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+
+        # Primary attempt: NIFC perimeters
+        try:
+            return request_perimeters(ARCGIS_SERVICES['nifc_perimeters']['url'], start_date)
+        except Exception as primary_err:
+            print(f"Primary NIFC perimeter fetch failed, retrying fallback: {primary_err}")
+            # Fallback to the alternate perimeters layer
+            try:
+                fallback = request_perimeters(ARCGIS_SERVICES['wfigs_current']['url'], start_date)
+                if fallback:
+                    return fallback
+            except Exception as secondary_err:
+                print(f"Fallback WFIGS perimeter fetch failed: {secondary_err}")
+            # If both fail, bubble the first error for visibility
+            raise primary_err
+
     except Exception as e:
         print(f"Error fetching ArcGIS fire perimeters: {e}")
         return []
@@ -226,8 +258,8 @@ def fetch_arcgis_active_wildfires(days_back: int = 7) -> List[Dict]:
                     'fire_cause': attrs.get('FireCause', 'Unknown'),
                     'state': attrs.get('POOState', ''),
                     'county': attrs.get('POOCounty', ''),
-                    'discovery_date': attrs.get('FireDiscoveryDateTime', ''),
-                    'update_time': attrs.get('ModifiedOn', ''),
+                    'discovery_date': _normalize_arcgis_timestamp(attrs.get('FireDiscoveryDateTime', '')),
+                    'update_time': _normalize_arcgis_timestamp(attrs.get('ModifiedOn', '')),
                     'residences_destroyed': attrs.get('ResidencesDestroyed') or 0,
                     'structures_destroyed': attrs.get('OtherStructuresDestroyed') or 0,
                     'fatalities': attrs.get('Fatalities') or 0,

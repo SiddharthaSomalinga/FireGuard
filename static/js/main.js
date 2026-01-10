@@ -845,51 +845,57 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // ============= NASA FIRMS Active Fire Functions =============
+    // ============= Combined Wildfire + Risk Map =============
 
     // FIRMS detail card intentionally disabled
     async function fetchAndDisplayFIRMSData() { return; }
     function displayFIRMSResults() { return; }
 
-    let liveFirmsMapInstance = null;
+    let combinedMap = null;
+    let combinedBaseLayers = {};
+    let overlayLayers = {};
+    let layerControl = null;
+
     let firmsMarkerCluster = null;
     let firmsHeatLayer = null;
-    let firmsMarkerLayer = null;
-    let firmsCurrentView = 'cluster'; // 'cluster', 'markers', 'heat'
-    let firmsBaseLayers = {};
     let firmsCurrentFires = [];
+    let firmsCurrentView = 'cluster';
 
-    function initializeLiveFirmsMap(fires) {
-        const mapElement = document.getElementById('liveFirmsMap');
-        if (!mapElement) return;
+    let riskHeatLayer = null;
+    let riskGeoJSONLayer = null;
+    let riskCurrentData = null;
+    let riskCurrentView = 'grid';
 
-        if (liveFirmsMapInstance) {
-            liveFirmsMapInstance.remove();
-        }
+    const combinedStatus = {
+        fire: 'Loading live wildfire data...',
+        risk: 'Loading risk layer...'
+    };
 
-        // Limit to top fires for performance (sort by FRP)
-        let displayFires = fires;
-        if (fires.length > 2000) {
-            console.log(`⚠️ Too many fires (${fires.length}), limiting to top 2000 by fire power...`);
-            displayFires = fires
-                .sort((a, b) => (b.frp || 0) - (a.frp || 0))
-                .slice(0, 2000);
-            console.log(`✅ Displaying ${displayFires.length} highest-intensity fires`);
-        }
-        
-        firmsCurrentFires = displayFires;
-        const centerLat = 50.0;
+    function updateCombinedStatus() {
+        const el = document.getElementById('combinedMapContent');
+        if (!el) return;
+        el.innerHTML = `
+            <div class="combined-status-row"><strong>Fires:</strong> ${combinedStatus.fire}</div>
+            <div class="combined-status-row"><strong>Risk:</strong> ${combinedStatus.risk}</div>
+        `;
+    }
+
+    function ensureCombinedMap() {
+        const mapElement = document.getElementById('combinedMap');
+        if (!mapElement) return null;
+        if (combinedMap) return combinedMap;
+
+        const centerLat = 45.0;
         const centerLon = -100.0;
         const zoomLevel = 4;
 
-        liveFirmsMapInstance = L.map('liveFirmsMap', {
+        combinedMap = L.map('combinedMap', {
             fullscreenControl: true,
             fullscreenControlOptions: {
                 position: 'topleft'
             }
         }).setView([centerLat, centerLon], zoomLevel);
 
-        // Add multiple base layers
         const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
@@ -910,44 +916,35 @@ document.addEventListener('DOMContentLoaded', function() {
             maxZoom: 19
         });
 
-        // Add default layer
-        osmLayer.addTo(liveFirmsMapInstance);
+        osmLayer.addTo(combinedMap);
 
-        // Store base layers
-        firmsBaseLayers = {
+        combinedBaseLayers = {
             "Street Map": osmLayer,
             "Satellite": satelliteLayer,
             "Topographic": topoLayer,
             "Dark Mode": darkLayer
         };
 
-        // Add layer control
-        L.control.layers(firmsBaseLayers, {}, { position: 'topright' }).addTo(liveFirmsMapInstance);
+        rebuildLayerControl();
+        L.control.scale({ imperial: true, metric: true }).addTo(combinedMap);
+        return combinedMap;
+    }
 
-        // Add scale control
-        L.control.scale({ imperial: true, metric: true }).addTo(liveFirmsMapInstance);
-
-        // Initialize clustering view (default)
-        updateFirmsView('cluster');
-
-        if (fires.length > 0) {
-            const bounds = L.latLngBounds(fires.map(fire => [fire.lat, fire.lon]));
-            liveFirmsMapInstance.fitBounds(bounds, { padding: [50, 50] });
+    function rebuildLayerControl() {
+        if (!combinedMap) return;
+        if (layerControl) {
+            layerControl.remove();
         }
+        layerControl = L.control.layers(combinedBaseLayers, overlayLayers, {
+            position: 'topright',
+            collapsed: false
+        }).addTo(combinedMap);
+    }
 
-        // Setup control buttons
-        setupFirmsControls();
-
-        if (!document.querySelector('style[data-pulse]')) {
-            const style = document.createElement('style');
-            style.setAttribute('data-pulse', 'true');
-            style.textContent = `
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.7; transform: scale(1.1); }
-                }
-            `;
-            document.head.appendChild(style);
+    function removeOverlay(name) {
+        if (overlayLayers[name] && combinedMap) {
+            combinedMap.removeLayer(overlayLayers[name]);
+            delete overlayLayers[name];
         }
     }
 
@@ -975,6 +972,53 @@ document.addEventListener('DOMContentLoaded', function() {
         return dateStr || timeStr || 'Unknown';
     }
 
+    function formatPrettyDateTime(dateStr, timeStr) {
+        // If date is ISO-like, prefer it and ignore timeStr to avoid double times
+        const looksIso = typeof dateStr === 'string' && /\d{4}-\d{2}-\d{2}T/.test(dateStr);
+        if (looksIso) {
+            const parsed = new Date(dateStr);
+            if (!Number.isNaN(parsed.getTime())) return parsed.toUTCString();
+        }
+
+        // If date already includes a time (hh:mm) or any colon, trust it alone
+        if (dateStr && /\d{1,2}:\d{2}/.test(dateStr)) return dateStr;
+        if (dateStr && dateStr.includes(':')) return dateStr;
+
+        // If we have both and date isn't ISO and lacks time, combine once
+        if (dateStr && timeStr && !looksIso) {
+            const trimmedTime = timeStr.trim();
+            const lowerDate = dateStr.toLowerCase();
+            if (lowerDate.includes(trimmedTime.toLowerCase())) return dateStr;
+            return formatDateTime(dateStr, timeStr);
+        }
+
+        const raw = dateStr || timeStr;
+        if (!raw) return 'Unknown';
+
+        try {
+            if (/^\d{12,}$/.test(raw)) {
+                const ms = Number(raw);
+                const d = new Date(ms);
+                if (!Number.isNaN(d.getTime())) return d.toUTCString();
+            }
+            const parsed = new Date(raw);
+            if (!Number.isNaN(parsed.getTime())) {
+                return parsed.toLocaleString('en-US', {
+                    timeZone: 'UTC',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                });
+            }
+        } catch (e) {
+            // Fallback below
+        }
+        return raw;
+    }
+
     function buildFirePopup(fire) {
         const fireName = fire.fire_name || 'Wildfire';
         const typeLabel = (fire.fire_type || fire.type || 'Wildfire').toString().replace(/_/g, ' ');
@@ -985,8 +1029,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const brightness = Number.isFinite(Number(fire.brightness)) ? `${Number(fire.brightness).toFixed(1)}K` : 'N/A';
         const confidence = fire.confidence_level || 'unknown';
         const source = fire.source || 'ArcGIS';
-        const discovered = fire.discovery_date || 'Unknown';
-        const updated = fire.update_time || fire.acq_date || 'Unknown';
+        const discovered = formatPrettyDateTime(fire.discovery_date, fire.acq_time);
+        // Only pass acq_time if update_time doesn't already have time info
+        const updateTimeRaw = fire.update_time || fire.acq_date || '';
+        const updated = formatPrettyDateTime(updateTimeRaw, 
+            (updateTimeRaw && /\d{1,2}:\d{2}/.test(updateTimeRaw)) ? null : fire.acq_time);
         const residences = formatCount(fire.residences_destroyed);
         const structures = formatCount(fire.structures_destroyed);
         const personnel = formatCount(fire.personnel);
@@ -1007,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="fire-popup-item"><span class="fire-popup-label">Confidence:</span><span class="fire-popup-value">${confidence}</span></div>
                 <div class="fire-popup-item"><span class="fire-popup-label">Source:</span><span class="fire-popup-value">${source}</span></div>
                 <div class="fire-popup-meta">Discovered: ${discovered}</div>
-                <div class="fire-popup-meta">Current as of: ${formatDateTime(updated, fire.acq_time)}</div>
+                <div class="fire-popup-meta">Current as of: ${updated}</div>
             </div>
         `;
     }
@@ -1037,34 +1084,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateFirmsView(viewType) {
-        if (!liveFirmsMapInstance) return;
+        const map = ensureCombinedMap();
+        if (!map) return;
 
-        // Clear existing layers
+        removeOverlay('Fire Clusters');
+        removeOverlay('Fire Heat');
+
         if (firmsMarkerCluster) {
-            liveFirmsMapInstance.removeLayer(firmsMarkerCluster);
+            map.removeLayer(firmsMarkerCluster);
             firmsMarkerCluster = null;
         }
         if (firmsHeatLayer) {
-            liveFirmsMapInstance.removeLayer(firmsHeatLayer);
+            map.removeLayer(firmsHeatLayer);
             firmsHeatLayer = null;
-        }
-        if (firmsMarkerLayer) {
-            liveFirmsMapInstance.removeLayer(firmsMarkerLayer);
-            firmsMarkerLayer = null;
         }
 
         firmsCurrentView = viewType;
 
         if (viewType === 'cluster') {
-            // Clustered markers view with performance optimization
             const clusterRadius = firmsCurrentFires.length > 1000 ? 120 : 80;
             firmsMarkerCluster = L.markerClusterGroup({
                 maxClusterRadius: clusterRadius,
                 spiderfyOnMaxZoom: true,
-                showCoverageOnHover: false, // Disable for performance
+                showCoverageOnHover: false,
                 zoomToBoundsOnClick: true,
                 disableClusteringAtZoom: 15,
-                chunkedLoading: true, // Enable chunked loading for better performance
+                chunkedLoading: true,
                 chunkInterval: 200,
                 chunkDelay: 50,
                 iconCreateFunction: function(cluster) {
@@ -1081,26 +1126,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            console.log(`📍 Creating ${firmsCurrentFires.length} markers...`);
-            let addedCount = 0;
             firmsCurrentFires.forEach(fire => {
                 const marker = createFireMarker(fire);
                 if (marker) {
                     firmsMarkerCluster.addLayer(marker);
-                    addedCount++;
                 }
             });
-            console.log(`✅ Added ${addedCount} markers to cluster`);
-            
 
-            console.log('🗺️ Adding cluster layer to map...');
-            liveFirmsMapInstance.addLayer(firmsMarkerCluster);
-            console.log('✅ Cluster layer added successfully!');
+            map.addLayer(firmsMarkerCluster);
+            overlayLayers['Fire Clusters'] = firmsMarkerCluster;
         } else if (viewType === 'heat') {
-            // Heat map view
             const heatData = firmsCurrentFires.map(fire => {
-                // Weight by FRP (Fire Radiative Power)
-                const weight = Math.min(fire.frp / 500, 1);
+                const weight = Math.min((fire.frp || 0) / 500, 1);
                 return [fire.lat, fire.lon, weight];
             });
 
@@ -1118,40 +1155,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            liveFirmsMapInstance.addLayer(firmsHeatLayer);
-        }
-    }
-
-    function setupFirmsControls() {
-        const clusterBtn = document.getElementById('firmsClusterBtn');
-        const heatBtn = document.getElementById('firmsHeatBtn');
-        const refreshBtn = document.getElementById('firmsRefreshBtn');
-
-        if (clusterBtn) {
-            clusterBtn.addEventListener('click', function() {
-                updateFirmsView('cluster');
-                clusterBtn.classList.add('active');
-                heatBtn.classList.remove('active');
-            });
+            map.addLayer(firmsHeatLayer);
+            overlayLayers['Fire Heat'] = firmsHeatLayer;
         }
 
-        if (heatBtn) {
-            heatBtn.addEventListener('click', function() {
-                updateFirmsView('heat');
-                heatBtn.classList.add('active');
-                clusterBtn.classList.remove('active');
-            });
-        }
+        rebuildLayerControl();
 
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', function() {
-                refreshBtn.disabled = true;
-                refreshBtn.innerHTML = '<span>⏳</span> Loading...';
-                fetchLiveWildfires().finally(() => {
-                    refreshBtn.disabled = false;
-                    refreshBtn.innerHTML = '<span>🔄</span> Refresh';
-                });
-            });
+        if (firmsCurrentFires.length > 0) {
+            const bounds = L.latLngBounds(firmsCurrentFires.map(fire => [fire.lat, fire.lon]));
+            map.fitBounds(bounds, { padding: [50, 50] });
         }
     }
 
@@ -1160,24 +1172,21 @@ document.addEventListener('DOMContentLoaded', function() {
         return; // No-op to avoid showing preload summary
     }
 
-    // Fetch and display live wildfires for the main page map
+    // Fetch and display live wildfires for the combined map
     async function fetchLiveWildfires() {
-        const liveFirmsContent = document.getElementById('liveFirmsContent');
-        const liveFirmsMapContainer = document.getElementById('liveFirmsMapContainer');
+        const mapContainer = document.getElementById('combinedMapContainer');
+        if (mapContainer) mapContainer.style.display = 'block';
+        combinedStatus.fire = 'Loading live wildfire data...';
+        updateCombinedStatus();
+        ensureCombinedMap();
         
         try {
-            liveFirmsMapContainer.style.display = 'block';
-            liveFirmsContent.innerHTML = '<div class="firms-loading">Loading live wildfire data from ArcGIS...</div>';
-
-            // Try ArcGIS first (better data, no API key needed)
             let fires = [];
             let dataSource = 'ArcGIS';
             
             try {
-                // Add timeout to prevent hanging (30 seconds)
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000);
-                
                 const arcgisResp = await fetch('/api/arcgis/fires?days=30&hotspots=true', {
                     signal: controller.signal
                 });
@@ -1187,7 +1196,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     const arcgisJson = await arcgisResp.json();
                     if (arcgisJson.success && arcgisJson.data && arcgisJson.data.fires) {
                         fires = arcgisJson.data.fires;
-                        // Filter out fires with invalid coordinates
                         fires = fires.filter(fire => 
                             fire && 
                             typeof fire.lat === 'number' && 
@@ -1199,11 +1207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         );
                         dataSource = arcgisJson.data.sources ? arcgisJson.data.sources.join(', ') : 'ArcGIS';
                         console.log(`✅ Loaded ${fires.length} valid fires from ArcGIS (filtered invalid coordinates)`);
-                    } else {
-                        console.warn('⚠️ ArcGIS returned no fire data');
                     }
-                } else {
-                    console.warn(`⚠️ ArcGIS request failed with status: ${arcgisResp.status}`);
                 }
             } catch (arcgisErr) {
                 if (arcgisErr.name === 'AbortError') {
@@ -1213,9 +1217,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Fallback to FIRMS if ArcGIS fails or returns no data
             if (fires.length === 0) {
-                liveFirmsContent.innerHTML = '<div class="firms-loading">ArcGIS returned no data, trying NASA FIRMS...</div>';
                 try {
                     const firmsResp = await fetch('/api/firms/recent?days=7&max=2000');
                     if (firmsResp.ok) {
@@ -1232,56 +1234,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             if (fires && fires.length > 0) {
-                console.log(`✅ Successfully loaded ${fires.length} fires from ${dataSource}`);
-                console.log('Sample fire data:', fires[0]);
-                console.log('First 5 fires coordinates:', fires.slice(0, 5).map(f => ({lat: f.lat, lon: f.lon})));
-                
-                // Update content with fire count
-                liveFirmsContent.innerHTML = `
-                    <div class="firms-status good">
-                        <div class="firms-status-icon">🔥</div>
-                        <div class="firms-status-text">
-                            <div class="firms-status-title">${fires.length} Active Wildfires Detected</div>
-                            <div class="firms-status-desc">Live data from ${dataSource} (last 7 days)</div>
-                        </div>
-                    </div>
-                `;
-                
-                // Initialize map with all fires (ensure map container is ready)
-                if (document.getElementById('liveFirmsMap')) {
-                    setTimeout(() => {
-                        console.log('🗺️ Initializing map with', fires.length, 'fires...');
-                        try {
-                            initializeLiveFirmsMap(fires);
-                            console.log('✅ Map initialized successfully');
-                        } catch (mapErr) {
-                            console.error('❌ Error initializing map:', mapErr);
-                            liveFirmsContent.innerHTML = `
-                                <div class="firms-no-data">
-                                    <p>Error displaying fires on map. Data loaded but visualization failed.</p>
-                                    <p style="margin-top: 8px; font-size: 0.9em; color: var(--text-light);">
-                                        ${fires.length} fires were loaded successfully.
-                                    </p>
-                                </div>
-                            `;
-                        }
-                    }, 200);
-                } else {
-                    console.error('❌ Map container not found!');
-                }
+                firmsCurrentFires = fires.length > 2000
+                    ? fires.sort((a, b) => (b.frp || 0) - (a.frp || 0)).slice(0, 2000)
+                    : fires;
+                combinedStatus.fire = `${firmsCurrentFires.length} active wildfires from ${dataSource}`;
+                updateCombinedStatus();
+                updateFirmsView(firmsCurrentView);
             } else {
-                liveFirmsContent.innerHTML = `
-                    <div class="firms-no-data">
-                        <p>No recent wildfire data available from any source.</p>
-                        <p style="margin-top: 8px; font-size: 0.9em; color: var(--text-light);">
-                            This may indicate good fire conditions or temporary data unavailability.
-                        </p>
-                    </div>
-                `;
+                combinedStatus.fire = 'No recent wildfire data available.';
+                updateCombinedStatus();
+                removeOverlay('Fire Clusters');
+                removeOverlay('Fire Heat');
+                rebuildLayerControl();
             }
         } catch (err) {
             console.error('❌ Error fetching live wildfires:', err);
-            liveFirmsContent.innerHTML = '<div class="firms-no-data">Unable to load wildfire data. Please try again later.</div>';
+            combinedStatus.fire = 'Unable to load wildfire data.';
+            updateCombinedStatus();
         }
     }
 
@@ -1317,102 +1286,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ============= Risk Layer Functions =============
-    
-    let riskLayerMapInstance = null;
-    let riskHeatLayer = null;
-    let riskGeoJSONLayer = null;
-    let riskCurrentView = 'grid'; // 'grid' or 'heat'
-    let riskBaseLayers = {};
-    let riskCurrentData = null;
-    
-    function initializeRiskLayerMap(geojson) {
-        const mapElement = document.getElementById('riskLayerMap');
-        if (!mapElement) return;
-        
-        if (riskLayerMapInstance) {
-            riskLayerMapInstance.remove();
-        }
-        
-        riskCurrentData = geojson;
-        const centerLat = 45.0;
-        const centerLon = -100.0;
-        const zoomLevel = 4;
-        
-        riskLayerMapInstance = L.map('riskLayerMap', {
-            fullscreenControl: true,
-            fullscreenControlOptions: {
-                position: 'topleft'
-            }
-        }).setView([centerLat, centerLon], zoomLevel);
-        
-        // Add multiple base layers
-        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        });
-
-        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles © Esri',
-            maxZoom: 19
-        });
-
-        const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: 'Map data: © OpenStreetMap, SRTM | Map style: © OpenTopoMap',
-            maxZoom: 17
-        });
-
-        // Add default layer
-        osmLayer.addTo(riskLayerMapInstance);
-
-        // Store base layers
-        riskBaseLayers = {
-            "Street Map": osmLayer,
-            "Satellite": satelliteLayer,
-            "Topographic": topoLayer
-        };
-
-        // Add layer control
-        L.control.layers(riskBaseLayers, {}, { position: 'topright' }).addTo(riskLayerMapInstance);
-
-        // Add scale control
-        L.control.scale({ imperial: true, metric: true }).addTo(riskLayerMapInstance);
-        
-        // Initialize grid view (default)
-        updateRiskView('grid');
-
-        // Setup control buttons
-        setupRiskControls();
-    }
 
     function updateRiskView(viewType) {
-        if (!riskLayerMapInstance || !riskCurrentData) return;
+        const map = ensureCombinedMap();
+        if (!map || !riskCurrentData) return;
 
-        // Clear existing layers
+        removeOverlay('Risk Grid');
+        removeOverlay('Risk Heat');
+
         if (riskGeoJSONLayer) {
-            riskLayerMapInstance.removeLayer(riskGeoJSONLayer);
+            map.removeLayer(riskGeoJSONLayer);
             riskGeoJSONLayer = null;
         }
         if (riskHeatLayer) {
-            riskLayerMapInstance.removeLayer(riskHeatLayer);
+            map.removeLayer(riskHeatLayer);
             riskHeatLayer = null;
         }
 
         riskCurrentView = viewType;
 
         if (viewType === 'grid') {
-            // Grid view with polygons
             if (riskCurrentData.features) {
                 riskGeoJSONLayer = L.geoJSON(riskCurrentData, {
                     style: function(feature) {
-                        const props = feature.properties;
-                        const color = props.risk_color || '#FFA500';
                         return {
-                            fillColor: color,
+                            fillColor: feature.properties.risk_color || '#FFA500',
                             weight: 1,
-                            opacity: 0.7,
-                            color: '#333',
+                            opacity: 0.5,
+                            color: '#444',
                             dashArray: '3',
-                            fillOpacity: 0.5
+                            fillOpacity: 0.25
                         };
                     },
                     onEachFeature: function(feature, layer) {
@@ -1455,12 +1358,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                         layer.bindPopup(popup);
 
-                        // Add hover effect
                         layer.on('mouseover', function(e) {
-                            const layer = e.target;
-                            layer.setStyle({
-                                weight: 3,
-                                fillOpacity: 0.7
+                            const hovered = e.target;
+                            hovered.setStyle({
+                                weight: 2,
+                                fillOpacity: 0.35
                             });
                         });
 
@@ -1470,15 +1372,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
-                riskLayerMapInstance.addLayer(riskGeoJSONLayer);
+                map.addLayer(riskGeoJSONLayer);
+                overlayLayers['Risk Grid'] = riskGeoJSONLayer;
             }
         } else if (viewType === 'heat') {
-            // Heat map view
             const heatData = [];
             if (riskCurrentData.features) {
                 riskCurrentData.features.forEach(feature => {
                     const coords = feature.geometry.coordinates[0];
-                    // Get center of polygon
                     let sumLat = 0, sumLon = 0;
                     coords.forEach(coord => {
                         sumLon += coord[0];
@@ -1507,105 +1408,92 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            riskLayerMapInstance.addLayer(riskHeatLayer);
+            map.addLayer(riskHeatLayer);
+            overlayLayers['Risk Heat'] = riskHeatLayer;
         }
+
+        rebuildLayerControl();
     }
 
-    function setupRiskControls() {
-        const viewBtn = document.getElementById('riskLayerViewBtn');
-        const refreshBtn = document.getElementById('riskRefreshBtn');
-
-        if (viewBtn) {
-            viewBtn.addEventListener('click', function() {
-                if (riskCurrentView === 'grid') {
-                    updateRiskView('heat');
-                    viewBtn.classList.add('active');
-                } else {
-                    updateRiskView('grid');
-                    viewBtn.classList.remove('active');
-                }
-            });
-        }
-
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', function() {
-                refreshBtn.disabled = true;
-                refreshBtn.innerHTML = '<span>⏳</span> Loading...';
-                fetchAndDisplayRiskLayer().finally(() => {
-                    refreshBtn.disabled = false;
-                    refreshBtn.innerHTML = '<span>🔄</span> Refresh';
-                });
-            });
-        }
-    }
-    
     async function fetchAndDisplayRiskLayer() {
-        const riskLayerContent = document.getElementById('riskLayerContent');
-        const riskLayerMapContainer = document.getElementById('riskLayerMapContainer');
+        combinedStatus.risk = 'Generating geospatial risk layer...';
+        updateCombinedStatus();
+        ensureCombinedMap();
         
         try {
-            riskLayerMapContainer.style.display = 'block';
-            riskLayerContent.innerHTML = '<div class="firms-loading">Generating geospatial risk layer...</div>';
-            
-            // Use environment-aware grid resolution: 2.0° for production (memory-safe), 1.0° for localhost
             const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
             const gridResolution = isProduction ? '2.0' : '1.0';
-            
             const resp = await fetch(`/api/risk-layer/geojson?grid_resolution=${gridResolution}`);
             if (!resp.ok) throw new Error('Failed to fetch risk layer');
             const json = await resp.json();
             
             if (json.success && json.data) {
                 const geojson = json.data;
+                riskCurrentData = geojson;
                 const metadata = geojson.metadata || {};
-                
-                riskLayerContent.innerHTML = `
-                    <div class="firms-status good">
-                        <div class="firms-status-icon">🗺️</div>
-                        <div class="firms-status-text">
-                            <div class="firms-status-title">Risk Layer Ready</div>
-                            <div class="firms-status-desc">${metadata.total_cells} grid cells analyzed with ${metadata.fire_count} active fires detected</div>
-                        </div>
-                    </div>
-                `;
-                
-                setTimeout(() => {
-                    initializeRiskLayerMap(geojson);
-                }, 100);
+                combinedStatus.risk = `Risk layer ready (${metadata.total_cells || 'N/A'} cells, ${metadata.fire_count || 0} fires)`;
+                updateCombinedStatus();
+                updateRiskView(riskCurrentView || 'grid');
             } else {
-                riskLayerContent.innerHTML = '<div class="firms-no-data">Unable to generate risk layer</div>';
+                combinedStatus.risk = 'Unable to generate risk layer.';
+                updateCombinedStatus();
             }
         } catch (err) {
             console.error('Error fetching risk layer:', err);
-            riskLayerContent.innerHTML = '<div class="firms-no-data">Unable to load risk layer. Please try again later.</div>';
+            combinedStatus.risk = 'Unable to load risk layer.';
+            updateCombinedStatus();
         }
     }
 
-    // Initialize global FIRMS view on page load
-    // Preload summary disabled
+    // Map toggle controls
+    const riskToggleBtn = document.getElementById('riskLayerToggleBtn');
+    if (riskToggleBtn) {
+        riskToggleBtn.addEventListener('click', function() {
+            riskCurrentView = riskCurrentView === 'grid' ? 'heat' : 'grid';
+            updateRiskView(riskCurrentView);
+            riskToggleBtn.classList.toggle('active', riskCurrentView === 'heat');
+        });
+    }
 
-    // Initialize risk layer on page load
+    const fireToggleBtn = document.getElementById('fireLayerToggleBtn');
+    if (fireToggleBtn) {
+        fireToggleBtn.addEventListener('click', function() {
+            firmsCurrentView = firmsCurrentView === 'cluster' ? 'heat' : 'cluster';
+            updateFirmsView(firmsCurrentView);
+            fireToggleBtn.classList.toggle('active', firmsCurrentView === 'heat');
+        });
+    }
+
+    const combinedRefreshBtn = document.getElementById('combinedRefreshBtn');
+    if (combinedRefreshBtn) {
+        combinedRefreshBtn.addEventListener('click', function() {
+            combinedRefreshBtn.disabled = true;
+            combinedRefreshBtn.innerHTML = '<span>⏳</span> Loading...';
+            Promise.allSettled([fetchAndDisplayRiskLayer(), fetchLiveWildfires()]).finally(() => {
+                combinedRefreshBtn.disabled = false;
+                combinedRefreshBtn.innerHTML = '<span>🔄</span> Refresh';
+            });
+        });
+    }
+
+    // Initialize combined map layers on page load
     try {
+        ensureCombinedMap();
         fetchAndDisplayRiskLayer();
-        // Auto-refresh every 15 minutes
+        fetchLiveWildfires();
+
+        // Auto-refresh risk every 15 minutes and fires every 10 minutes
         setInterval(() => {
             console.log('Auto-refreshing risk layer data...');
             fetchAndDisplayRiskLayer();
         }, 15 * 60 * 1000);
-    } catch (e) {
-        console.warn('Failed to initialize risk layer map:', e);
-    }
 
-    // Initialize live wildfires map on page load
-    try {
-        fetchLiveWildfires();
-        // Auto-refresh every 10 minutes
         setInterval(() => {
             console.log('Auto-refreshing live wildfire data...');
             fetchLiveWildfires();
         }, 10 * 60 * 1000);
     } catch (e) {
-        console.warn('Failed to initialize live wildfires map:', e);
+        console.warn('Failed to initialize combined map:', e);
     }
 
 });
